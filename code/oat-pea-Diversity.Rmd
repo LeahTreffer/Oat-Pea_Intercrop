@@ -1,0 +1,764 @@
+---
+title: "Summer 2024 Oat Pea Intercrop Diversity Analysis"
+author: "lkt38 via pthyde123"
+date: "2024-09-21"
+output: html_document
+editor_options:
+  chunk_output_type: console
+output_dir: "/Users/leahtreffer/GitHub/OatPea_intercrop/docs"
+---
+
+```{r, echo=FALSE}
+knitr::opts_knit$set(root.dir = "/Users/leahtreffer/GitHub/OatPea_intercrop", echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r eval=FALSE}
+setwd("/Users/leahtreffer/GitHub/OatPea_intercrop")
+```
+
+<br>
+
+## Packages
+```{r,  echo=TRUE}
+library(readr)
+library(RColorBrewer)
+library(tidyverse)
+library(readxl)
+library(dplyr)
+library(data.table)
+library(corrplot)
+library(ggplot2)     
+library(car)          
+library(broom)  
+install.packages("broom")
+install.packages("kableExtra")
+library(broom)
+library(kableExtra)
+library(corrplot)
+library(PerformanceAnalytics)
+```
+
+```{r,  include=FALSE}
+#Import diversity data file
+diversity <- read_csv("data/SpringOatPeaIntercrop_2024_NY_phenotypes.csv")
+```
+
+```{r, include=FALSE}
+## Other diversity data files
+#2023data: (loading in to compare colnames to 2024 data table)
+div2023 <- read_excel("data/2023_oat_pea_data.xlsx", sheet = "diversity")
+meta2023 <- read_csv("data/2023_plot_meta.csv")
+```
+
+```{r include=FALSE}
+# pea name from columns for each type to one column
+
+#shorten column names of the pea ID columns
+#Remove characters before the last underscore in the columns giving pea names
+colnames(diversity)[60:71] <- sub(".*_", "", colnames(diversity)[60:71])
+
+# Replace 1 with the column name
+diversity[, 60:71] <- lapply(names(diversity)[60:71], function(col) {
+  ifelse(diversity[[col]] == 1, col, NA)
+})
+
+# Combine columns 60 to 71 into a single column
+diversity$peaName <- apply(diversity[, 60:71], 1, function(x) {
+  na.omit(x)[1]
+})
+
+# pea type from meta data
+types <- meta2023[,c("peaName","pea_type")]
+# Create a new table with unique entries based on 'Column1'
+types <- types %>% distinct(peaName, .keep_all = TRUE)
+#remove first row (na)
+types <- types[-1,]
+
+# now merge with data to have column filled with pea type for each entry
+data <- diversity %>%
+  left_join(types, by = "peaName")
+
+```
+
+```{r include=FALSE}
+#shorten trait names
+#data$`Lodging severity - 0-9 Rating|CO_350:0005007` # column 38
+colnames(data)[38] <- "Lodging"
+#data$`Pea grain yield - g/m2|COMP:0000049` # column 
+colnames(data)[44] <- "pea_grain_yield"
+#data$`Grain yield - g/m2|CO_350:0000260` # column
+colnames(data)[37] <- "oat_grain_yield"
+colnames(data)[32] <- "Biomass_1_oat_g"
+colnames(data)[33] <- "Biomass_2_oat_g"
+colnames(data)[34] <- "Biomass_3_oat_g"
+colnames(data)[35] <- "Biomass_4_oat_g"
+colnames(data)[39] <- "Biomass_1_pea_g"
+colnames(data)[40] <- "Biomass_2_pea_g"
+colnames(data)[41] <- "Biomass_3_pea_g"
+colnames(data)[42] <- "Biomass_4_pea_g"
+colnames(data)[55] <- "Biomass_1_weed_g"
+colnames(data)[56] <- "Biomass_2_weed_g"
+colnames(data)[57] <- "Biomass_3_weed_g"
+colnames(data)[58] <- "Biomass_4_weed_g"
+```
+
+```{r include=FALSE}
+# make plots that are oat monocultures have that indicated in the peatype column 
+data <- mutate(data, pea_type = ifelse(is.na(pea_type) | pea_type == "", "monoculture", pea_type))
+```
+
+```{r include=FALSE}
+# there are some plots with no pea_type listed (so should have no peas) but have values in the pea grain column
+#These are them:
+#subset_test <- data %>%
+  #filter(pea_type == "monoculture" & pea_grain_yield > 0)
+
+# add the pea wieghts to the oat weight for these by modifying the oat and pea grain data where pea_type is "monoculture"
+data2 <- data %>%
+  mutate(oat_grain_yield = ifelse(pea_type == "monoculture", oat_grain_yield + pea_grain_yield, oat_grain_yield),
+         pea_grain_yield = ifelse(pea_type == "monoculture", NA, pea_grain_yield))
+```
+
+```{r include=FALSE}
+# get data for plot level rows only
+# Filter rows that do not contain 'subplot' in the ObservationUnitName column
+diveristy_plotlvl <- data2[!grepl("subplot", data$observationUnitName), ]
+```
+
+## Grain Harvest
+
+Total grain yield of the plot (oat grain + pea grain)
+
+the plots are represented as dots with the color corresponding to the plot's pea entry
+```{r,  echo=FALSE, warning=FALSE}
+diveristy_plotlvl %>% 
+  select(plotNumber,`pea_type`,Lodging,peaName,pea_grain_yield,oat_grain_yield) %>% 
+  mutate(lodging = as.numeric(`Lodging`)) %>% #change name of lodging column and name sure it's numeric
+  mutate(total_grain = (oat_grain_yield + pea_grain_yield))%>% #new column for total g of grain of both species in a plot
+  filter(pea_type != "monoculture") %>%  # Exclude rows where pea_type is 'monoculture'
+  ggplot(aes(`pea_type`,`total_grain`))+ # plot total grain yield by pea type (forage, grain)
+  geom_boxplot() +
+  geom_jitter(aes(`pea_type`,`total_grain`,color=peaName),width = 0.25,size=4)+
+  xlab("")+
+  ylab("Total Grain_g")+
+  scale_color_brewer(palette="Paired")+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle = 90, hjust = 1))+
+  theme(axis.text=element_text(size=20), axis.title=element_text(size=20,face="bold"))+
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 16))+
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 16))
+
+```
+
+
+```{r,  echo=FALSE, warning=FALSE}
+
+# question for peter: why are there pea dots on the oat boxplot?
+## the dots represent a plot with a certain pea. dots on the oat box are showing oat grain yield with that specic pea in the plot with it. 
+
+diveristy_plotlvl %>% 
+  mutate(pea_type = ifelse(is.na(pea_type) | pea_type == "", "monoculture", pea_type)) %>%  # Replace NA or empty values with 'monoculture'
+  select(plotNumber,`pea_type`,`Lodging`,peaName,pea_grain_yield,oat_grain_yield) %>% 
+  #filter(plotNumber != "27") %>% 
+  mutate(lodging = as.numeric(`Lodging`)) %>% 
+  mutate(total_grain = (oat_grain_yield + pea_grain_yield))%>%
+  pivot_longer(pea_grain_yield:oat_grain_yield, 
+               names_to = "grain_type", values_to = "grain_g") %>% 
+  mutate(grain_type = str_sub(grain_type, 1,3 )) %>% 
+
+  ggplot(aes(`grain_type`,`grain_g`))+
+  geom_boxplot() +
+  geom_jitter(aes(`grain_type`,`grain_g`,color=peaName),width = 0.25,size=4)+
+  xlab("")+
+  ylab("Grain g")+
+  scale_color_brewer(palette="Paired")+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle = 0, hjust = .5))+
+  theme(axis.text=element_text(size=20), axis.title=element_text(size=20,face="bold"))+
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 16))+
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 16))+
+  facet_wrap(~pea_type)
+
+# try looking at field vs forage instead of individual peaName
+
+diveristy_plotlvl %>%
+  select(plotNumber,`pea_type`,Lodging,peaName,oat_grain_yield,pea_grain_yield) %>% 
+  pivot_longer(oat_grain_yield:pea_grain_yield,
+               names_to = "grain_type", values_to = "grain_g") %>%
+  mutate(grain_type = str_replace(grain_type, "_yield","" )) %>%
+
+  ggplot(aes(`grain_type`, grain_g))+
+  geom_boxplot() +
+  geom_jitter(aes(`grain_type`,grain_g,color=pea_type),width = 0.25,size=4,alpha=.75)+
+  
+  xlab("")+
+  ylab("Yield (g/m2)")+
+  scale_color_manual(values = hcl.colors(3, palette = "Fall")) +
+  theme_classic()+
+  theme(axis.text.x=element_text(angle = 90, hjust = .5))+
+  theme(axis.text=element_text(size=20), axis.title=element_text(size=20,face="bold"))+
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 16))+
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 16))
+
+
+```
+
+
+
+## Lodging
+
+```{r,  echo=FALSE}
+
+diveristy_plotlvl %>% 
+  select(plotNumber,`pea_type`,`Lodging`,peaName,pea_grain_yield,oat_grain_yield) %>% 
+  mutate(lodging = as.numeric(`Lodging`)) %>% 
+  ggplot(aes(`pea_type`,`lodging`))+
+  geom_boxplot() +
+  geom_jitter(aes(`pea_type`,`lodging`,color=peaName),width = 0.25,size=4)+
+  xlab("")+
+  ylab("Lodging")+
+  scale_fill_brewer(palette="Dark2")+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle = 90, hjust = 1))+
+  theme(axis.text=element_text(size=20), axis.title=element_text(size=20,face="bold"))+
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 16))+
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 16))
+
+```
+
+
+## Biomass
+
+```{r,echo=FALSE,eval=FALSE, warning=FALSE}
+data2 %>% 
+  select(plotNumber,`pea_type`,peaName,pea_grain_yield,oat_grain_yield, 
+         Biomass_1_pea_g,Biomass_1_oat_g,Biomass_1_weed_g,
+         Biomass_2_pea_g,Biomass_2_oat_g,Biomass_2_weed_g,
+         Biomass_3_pea_g,Biomass_3_oat_g,Biomass_3_weed_g,
+         Biomass_4_pea_g,Biomass_4_oat_g,Biomass_4_weed_g) %>% 
+  mutate(biomass_1 = (Biomass_1_pea_g + Biomass_1_oat_g + Biomass_1_weed_g)) %>% 
+  mutate(biomass_2 = (Biomass_2_pea_g + Biomass_2_oat_g + Biomass_2_weed_g)) %>%
+  mutate(biomass_3 = (Biomass_3_pea_g + Biomass_3_oat_g + Biomass_3_weed_g)) %>%
+  mutate(biomass_4 = (Biomass_4_pea_g + Biomass_4_oat_g + Biomass_4_weed_g))
+```
+
+
+```{r,  echo=FALSE, warning=FALSE}
+data2 %>% 
+  select(plotNumber,`pea_type`,peaName,pea_grain_yield,oat_grain_yield, 
+         Biomass_1_pea_g,Biomass_1_oat_g,Biomass_1_weed_g,
+         Biomass_2_pea_g,Biomass_2_oat_g,Biomass_2_weed_g,
+         Biomass_3_pea_g,Biomass_3_oat_g,Biomass_3_weed_g,
+         Biomass_4_pea_g,Biomass_4_oat_g,Biomass_4_weed_g) %>% 
+  mutate(biomass_1 = (Biomass_1_pea_g + Biomass_1_oat_g + Biomass_1_weed_g)) %>% 
+  mutate(biomass_2 = (Biomass_2_pea_g + Biomass_2_oat_g + Biomass_2_weed_g)) %>%
+  mutate(biomass_3 = (Biomass_3_pea_g + Biomass_3_oat_g + Biomass_3_weed_g)) %>%
+  mutate(biomass_4 = (Biomass_4_pea_g + Biomass_4_oat_g + Biomass_4_weed_g)) %>%
+  select(`pea_type`,peaName,biomass_1,biomass_2,biomass_3,biomass_4) %>% 
+  pivot_longer(biomass_1:biomass_4, names_to = "biomass", values_to = "biomass_g") %>% 
+  ggplot(aes(`pea_type`,`biomass_g`,fill=biomass))+
+  geom_boxplot() +
+  xlab("")+
+  ylab("Total Biomass g")+
+  scale_fill_manual(values = hcl.colors(4, palette = "Teal", rev =T)) +  # Change to scale_fill_manual
+  theme_classic()+
+  theme(axis.text.x=element_text(angle = 90, hjust = 1))+
+  theme(axis.text=element_text(size=20), axis.title=element_text(size=20,face="bold"))+
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 16))+
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 16))
+
+```
+
+
+```{r,  echo=FALSE, warning=FALSE}
+data2 %>% 
+  select(plotNumber,`pea_type`,peaName,pea_grain_yield,oat_grain_yield, 
+         Biomass_1_pea_g,Biomass_1_oat_g,Biomass_1_weed_g,
+         Biomass_2_pea_g,Biomass_2_oat_g,Biomass_2_weed_g,
+         Biomass_3_pea_g,Biomass_3_oat_g,Biomass_3_weed_g,
+         Biomass_4_pea_g,Biomass_4_oat_g,Biomass_4_weed_g) %>% 
+  mutate(biomass_1 = (Biomass_1_pea_g + Biomass_1_oat_g + Biomass_1_weed_g)) %>% 
+  mutate(biomass_2 = (Biomass_2_pea_g + Biomass_2_oat_g + Biomass_2_weed_g)) %>%
+  mutate(biomass_3 = (Biomass_3_pea_g + Biomass_3_oat_g + Biomass_3_weed_g)) %>%
+  mutate(biomass_4 = (Biomass_4_pea_g + Biomass_4_oat_g + Biomass_4_weed_g)) %>%
+  pivot_longer(Biomass_1_pea_g:Biomass_4_weed_g, names_to = "biomass", values_to = "biomass_g") %>%
+  mutate(biomass = as.factor(biomass)) %>%
+  mutate(biomass = fct_relevel(biomass, 
+                                "Biomass_1_pea_g", "Biomass_2_pea_g", "Biomass_3_pea_g", "Biomass_4_pea_g",
+                                "Biomass_1_oat_g", "Biomass_2_oat_g", "Biomass_3_oat_g", "Biomass_4_oat_g",
+                                "Biomass_1_weed_g", "Biomass_2_weed_g", "Biomass_3_weed_g", "Biomass_4_weed_g")) %>%
+  
+  ggplot(aes(`pea_type`, `biomass_g`, fill = biomass)) +
+  geom_boxplot() +
+  xlab("Pea Type") +
+  ylab("Biomass (g)") +
+  scale_fill_manual(values = c(
+    hcl.colors(4, palette = "Purp", rev =T),  # For Pea Biomass
+    hcl.colors(4, palette = "Peach", rev =T),    # For Oat Biomass
+    hcl.colors(4, palette = "Emrld", rev =T)    # For Weed Biomass
+  )) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 1)) +
+  theme(axis.text = element_text(size = 20), axis.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 16)) +
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 16))
+
+```
+
+```{r include=FALSE, echo=FALSE}
+# data cleanup / manipulation to prep for correlations
+
+#data <- read.csv("data/SpringOatPeaIntercrop_2024_NY_phenotypes.csv")
+SpringOatPeaIntercrop_2024_NY_subplot <- read_excel("data/SpringOatPeaIntercrop_2024_NY_subplot.xlsx",
+                                                    sheet = "SpringOatPeaIntercrop_2024_NY_s")
+SpringOatPeaIntercrop_2024_NY_subplot_pairs <- read_excel("data/SpringOatPeaIntercrop_2024_NY_subplot.xlsx",
+                                                          sheet = "pair_id")
+
+data3 <- SpringOatPeaIntercrop_2024_NY_subplot %>%
+  left_join(SpringOatPeaIntercrop_2024_NY_subplot_pairs) %>% ## add the plot pairs
+  select(subplot_name,subplot_id,block_number,pair,plot_number,subplot_number) %>%
+  mutate(pair_plot = str_c(pair,"_",plot_number)) %>% # create pair_plot for sorting
+  mutate(pair_subplot = str_c(pair,"_",subplot_number)) # create pair_subplot for sorting
+
+colnames(data3)[1] <- "observationUnitName"
+
+data4 <- merge(data2, data3, by="observationUnitName")
+
+data4 <- mutate(data4, management = ifelse(pea_type == "monoculture", "monoculture" , "intercrop")) # is pea_type says monoculture, the managment column will say monoculture otherwise is will fill with intercrop
+
+#biomass colums: 24 32:35, 39:42, 55:58
+biomass <- data4[,c(1, 20, 79, 32:35, 39:42, 55:58, 72:81)] #observationUnitName, germplasm, traits, plot_subplot ids, plot, pea_type 
+biomass$oat_biomass <- apply(biomass[, c("Biomass_1_oat_g", "Biomass_2_oat_g", "Biomass_3_oat_g", "Biomass_4_oat_g")], 1, function(x) {
+  paste0(na.omit(x), collapse = "")
+})
+biomass$pea_biomass <- apply(biomass[, c("Biomass_1_pea_g", "Biomass_2_pea_g", "Biomass_3_pea_g", "Biomass_4_pea_g")], 1, function(x) {
+  paste0(na.omit(x), collapse = "")
+})
+biomass$weed_biomass <- apply(biomass[, c("Biomass_1_weed_g", "Biomass_2_weed_g", "Biomass_3_weed_g", "Biomass_4_weed_g")], 1, function(x) {
+  paste0(na.omit(x), collapse = "")
+})
+biomass <- biomass[,c("germplasmName", "peaName", "pea_type", "management", "observationUnitName", "block_number", "plot_number", "pair", "pair_plot", "pair_subplot","oat_biomass","pea_biomass","weed_biomass")]
+
+#remove the subplot 2 rows since biomass wasn't taken from them
+biomass2 <- biomass[!grepl("_subplot_2$", biomass$observationUnitName), ]
+
+# Replace blank cells with NA in the specified columns
+biomass2[, 8:10] <- lapply(biomass2[, 8:10], function(col) {
+  ifelse(col == "", NA, col)
+})
+
+biomass2$germplasmName <- as.factor(biomass2$germplasmName)
+biomass2$peaName <- as.factor(biomass2$peaName)
+biomass2$pea_type <- as.factor(biomass2$pea_type)
+biomass2$management <- as.factor(biomass2$management)
+biomass2$oat_biomass <- as.numeric(as.character(biomass2$oat_biomass))
+biomass2$pea_biomass <- as.numeric(as.character(biomass2$pea_biomass))
+biomass2$weed_biomass <- as.numeric(as.character(biomass2$weed_biomass))
+biomass2$block_number <- as.factor(as.character(biomass2$block_number))
+biomass2$plot_number <- as.factor(as.character(biomass2$plot_number))
+
+
+biomass2 <- biomass2 %>%
+  mutate(total_biomass = oat_biomass + coalesce(pea_biomass, 0) + weed_biomass)
+```
+
+```{r}
+diveristy_plotlvl <- diveristy_plotlvl %>%
+  mutate(total_yield = oat_grain_yield + coalesce(pea_grain_yield, 0))
+
+diveristy_plotlvl$germplasmName <- as.factor(diveristy_plotlvl$germplasmName)
+diveristy_plotlvl$peaName <- as.factor(diveristy_plotlvl$peaName)
+diveristy_plotlvl$blockNumber <- as.factor(diveristy_plotlvl$blockNumber)
+diveristy_plotlvl$plotNumber <- as.factor(diveristy_plotlvl$plotNumber)
+```
+
+```{r}
+# add total weed biomass as a column ; how to do this? since only half the plots have biomass at each time point and none at the timepoint of grain yield. There is no biomass that is present for all entries and cannot just average since weed biomass increased with time and the time we took it was random. Maybe normalize the two biomass values then average the normalized beta? 
+
+# Standardization (Z-score Normalization)
+# This method scales the variable so it has a mean of zero and a standard deviation of one. This is often helpful if you want to compare the effect size of different predictors. (so what I would end up with is an average effect size of weeds in the plot, to then put into a model for grain yield)
+
+
+# shorten the diveristy_plotlvl table so it's less chaotic to work with
+diversity_plots <- diveristy_plotlvl[,c(1, 6, 17, 19, 25, 26, 27, 28, 29, 37, 38, 44, 72, 73, 74)] # grab rows related to names, location, plots, and traits
+# make column for intercrop vs mono 
+diversity_plots <- mutate(diversity_plots, management = ifelse(pea_type == "monoculture", "monoculture" , "intercrop")) # is pea_type says monoculture, the managment column will say monoculture otherwise is will fill with intercrop
+
+diversity_plots$management <- as.factor(diversity_plots$management)
+
+# subset biomass by time of harvest
+sub1 <- data4[,c(1,2,18,20,25:29, 55,72:80)]
+sub2 <- data4[,c(1,2,18,20,25:29, 56,72:80)]
+sub3 <- data4[,c(1,2,18,20,25:29, 57,72:80)]
+sub4 <- data4[,c(1,2,18,20,25:29, 58,72:80)]
+
+# standardize each subset; make this a column 
+sub1$Biomass_1_weed_standardized <- scale(sub1$Biomass_1_weed_g, center = TRUE, scale = TRUE)
+sub2$Biomass_2_weed_standardized <- scale(sub2$Biomass_2_weed_g, center = TRUE, scale = TRUE)
+sub3$Biomass_3_weed_standardized <- scale(sub3$Biomass_3_weed_g, center = TRUE, scale = TRUE)
+sub4$Biomass_4_weed_standardized <- scale(sub4$Biomass_4_weed_g, center = TRUE, scale = TRUE)
+
+# bind the four columns and make a new column that is the average of these standardizations
+merged_data <- merge(sub1, sub2[,c("observationUnitName", "Biomass_2_weed_standardized")], by = "observationUnitName")
+merged_data <- merge(merged_data, sub3[,c("observationUnitName", "Biomass_3_weed_standardized")], by = "observationUnitName")
+merged_data <- merge(merged_data, sub4[,c("observationUnitName", "Biomass_4_weed_standardized")], by = "observationUnitName")
+
+new_table <- merged_data %>%
+  group_by(plotNumber) %>%  # Group by plotNumber
+  summarise(
+    observationUnitName = first(observationUnitName),      # Retain the first instance of col for each plotNumber
+    studyYear = first(studyYear),     
+    locationName = first(locationName),      
+    germplasmName = first(germplasmName),      
+    peaName = first(peaName),      
+    pea_type = first(pea_type),      
+    replicate = first(replicate),      
+    blockNumber = first(blockNumber),      
+    plotNumber = first(plotNumber),      
+    plot_number = first(plot_number),
+    colNumber = first(colNumber),      
+    subplot_id = first(subplot_id),     
+    block_number = first(block_number),       
+    pair = first(pair),     
+    pair_plot = first(pair_plot),      
+    
+    avg_biomass_s = mean(c(Biomass_1_weed_standardized, Biomass_2_weed_standardized, Biomass_3_weed_standardized, Biomass_4_weed_standardized), na.rm = TRUE)  # Calculate the average of the biomass columns
+
+  ) %>%
+  ungroup()  # Ungroup after summarizing
+
+# merge with data table with other traits 
+diversity_plots2 <- merge(diversity_plots, new_table[,c("plotNumber", "avg_biomass_s")], by="plotNumber")
+
+```
+
+correlations
+
+```{r include=FALSE, echo=FALSE, eval=FALSE}
+# correlations
+#biomass
+M = cor(biomass2[,c("oat_biomass", "pea_biomass", "weed_biomass","total_biomass")], use="pairwise.complete.obs")
+
+corrplot(M, method = 'number') # colorful number
+
+corrplot.mixed(
+  M,
+  lower = "",
+  upper = "number",
+)
+
+chart.Correlation(M, histogram=TRUE, pch=19)
+
+data_O <- data4[,c(1,2,18,32:35,39:42,55:58)]
+data_O$PlotUnitName <- gsub("_subplot_.*", "", data_O$observationUnitName)
+data_O <- data_O %>%
+  group_by(PlotUnitName) %>%
+  reframe(
+    Biomass_1_o = max(Biomass_1_oat_g, na.rm = TRUE),
+    Biomass_2_o = max(Biomass_2_oat_g, na.rm = TRUE),
+    Biomass_3_o = max(Biomass_3_oat_g, na.rm = TRUE),
+    Biomass_4_o = max(Biomass_4_oat_g, na.rm = TRUE),
+    Biomass_1_p = max(Biomass_1_pea_g, na.rm = TRUE),
+    Biomass_2_p = max(Biomass_2_pea_g, na.rm = TRUE),
+    Biomass_3_p = max(Biomass_3_pea_g, na.rm = TRUE),
+    Biomass_4_p = max(Biomass_4_pea_g, na.rm = TRUE),
+    Biomass_1_w = max(Biomass_1_weed_g, na.rm = TRUE),
+    Biomass_2_w = max(Biomass_2_weed_g, na.rm = TRUE),
+    Biomass_3_w = max(Biomass_3_weed_g, na.rm = TRUE),
+    Biomass_4_w = max(Biomass_4_weed_g, na.rm = TRUE)
+  ) %>%
+  mutate(across(starts_with("Biomass"), ~ if_else(. == -Inf, NA_real_, .)))
+
+O_pearson = cor(data_O[,c("Biomass_1_o", "Biomass_2_o", "Biomass_3_o", "Biomass_4_o",
+                  "Biomass_1_p", "Biomass_2_p", "Biomass_3_p", "Biomass_4_p",
+                  "Biomass_1_w", "Biomass_2_w", "Biomass_3_w", "Biomass_4_w")], use="pairwise.complete.obs", method="pearson")
+O_pearson[is.na(O_pearson)] <- 0  # Replace NA values with 0 in your correlation matrix
+O_spearman = cor(data_O[,c("Biomass_1_o", "Biomass_2_o", "Biomass_3_o", "Biomass_4_o",
+                  "Biomass_1_p", "Biomass_2_p", "Biomass_3_p", "Biomass_4_p",
+                  "Biomass_1_w", "Biomass_2_w", "Biomass_3_w", "Biomass_4_w")], use="pairwise.complete.obs", method="spearman")
+O_spearman[is.na(O_spearman)] <- 0  # Replace NA values with 0 in your correlation matrix
+
+corrplot.mixed(
+  O_pearson,
+  lower = "circle",
+  upper = "number",
+  lower.col = NA,       # Make lower part blank if needed
+  tl.cex = 0.6          # Adjust this value to decrease font size of trait labels
+)
+corrplot.mixed(
+  O_spearman,
+  lower = "circle",
+  upper = "number",
+  lower.col = NA,       # Make lower part blank if needed
+  tl.cex = 0.6          # Adjust this value to decrease font size of trait labels
+)
+
+#grain
+N = cor(diversity_plots2[,c("oat_grain_yield", "pea_grain_yield", "Lodging", "total_yield", "avg_biomass_s")], use="pairwise.complete.obs")
+
+corrplot.mixed(
+  N,
+  lower = "",
+  upper = "number",
+)
+```
+
+Biomass Linear Models
+
+```{r echo=FALSE, eval=FALSE}
+# ANOVA
+#Interpretation:
+#The summary(model) output will provide you with the coefficients for the pea and weed biomass covariates, indicating how each is correlated with oat biomass when controlling for the other.
+#The R-squared value will tell you how much of the variance in oat biomass is explained by the combined effects of pea and weed biomass.
+
+
+# Fit a linear model with oat biomass as the response variable and peas and weeds biomass as predictors
+# change in the response variable for a one-unit increase in each predictor variable
+model <- lm(oat_biomass ~ pea_biomass + weed_biomass + block_number, data = biomass2)
+summary(model)
+  # as pea biomass and weed biomass increase, oat biomass increases
+summary_model <- broom::tidy(model)
+summary_model %>%
+  mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 5, caption = "Summary of Linear Model for Oat Biomass", 
+        col.names = c("Term", "Estimate", "Std. Error", "t value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+model2 <- lm(oat_biomass ~ germplasmName + peaName + pea_biomass + weed_biomass + block_number, data = biomass2)
+summary(model2)
+# Tidy the model output and filter for significant covariates (p < 0.05)
+significant_summary <- broom::tidy(model2) %>%
+  filter(p.value < 0.1)
+significant_summary %>%
+  select(term, estimate, std.error, statistic, p.value) %>%
+  mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 3, caption = "Significant Covariates in Linear Model for Oat Biomass",
+        col.names = c("Term", "Estimate", "Std. Error", "t value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+model3 <- lm(pea_biomass ~ germplasmName + peaName + oat_biomass + weed_biomass + block_number, data = biomass2)
+summary(model3)
+# Tidy the model output and filter for significant covariates (p < 0.05)
+significant_summary <- broom::tidy(model3) %>%
+  filter(p.value < 0.05)
+significant_summary %>%
+  select(term, estimate, std.error, statistic, p.value) %>%
+  mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 3, caption = "Significant Covariates in Linear Model for Pea Biomass",
+        col.names = c("Term", "Estimate", "Std. Error", "t value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+
+### are group means different than each other
+model_oatbiomass <- aov(oat_biomass ~ germplasmName + peaName + pea_type + pea_biomass + weed_biomass, biomass2)
+summary(model_oatbiomass)
+
+significant_summary2 <- broom::tidy(model_oatbiomass) %>%
+  filter(p.value < 0.05)
+significant_summary2 %>%
+  mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 3, caption = "ANOVA Results for Oat Biomass Model",
+        col.names = c("Term", "Degrees of Freedom", "Sum of Squares", "Mean Square", "F value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+model_totalbiomass <- aov(total_biomass ~ germplasmName + peaName + pea_type + oat_biomass + pea_biomass + weed_biomass + block_number, biomass2)
+summary(model_totalbiomass)
+sig_summ_total <- broom::tidy(model_totalbiomass) %>%
+  filter(p.value < 0.05)
+sig_summ_total %>%
+  mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 3, caption = "ANOVA Results for Total Plot Biomass Model",
+        col.names = c("Term", "Degrees of Freedom", "Sum of Squares", "Mean Square", "F value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+
+model_peabiomass <- aov(pea_biomass ~ germplasmName + peaName + pea_type + oat_biomass + weed_biomass, biomass2)
+summary(model_peabiomass)
+
+significant_summary3 <- broom::tidy(model_peabiomass) %>%
+  filter(p.value < 0.05)
+significant_summary3 %>%
+  mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 3, caption = "ANOVA Results for Pea Biomass Model",
+        col.names = c("Term", "Degrees of Freedom", "Sum of Squares", "Mean Square", "F value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+### Model Assumptions
+##Verify that the assumptions of ANOVA (normality, homogeneity of variances, and independence) are met:
+  # Normality: Check the residuals for normality using a Q-Q plot.
+  # Homogeneity of Variances: Use Levene's test to check for equal variances.
+  # Independence: Ensure that the residuals are independent.
+
+```
+
+Grain Linear Models
+
+
+```{r include=FALSE, echo=FALSE}
+# is the mean of forage type different than the mean of field type
+model_yield <- aov(total_yield ~ pea_type + peaName + germplasmName + avg_biomass_s, data=diversity_plots2) 
+summary(model_yield)
+
+significant_yield_summary <- broom::tidy(model_yield) %>%
+  filter(p.value < 1)
+significant_yield_summary %>%
+  #mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 3, caption = "ANOVA Results for Total Grain Yield Model",
+        col.names = c("Term", "Degrees of Freedom", "Sum of Squares", "Mean Square", "F value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+# oat grain 
+model_yield2 <- aov(oat_grain_yield ~ pea_type + peaName + germplasmName + avg_biomass_s, data=diversity_plots2) 
+summary(model_yield2)
+
+# pea grain 
+model_yield3 <- aov(pea_grain_yield ~ pea_type + peaName + germplasmName + avg_biomass_s, data=diversity_plots2) 
+summary(model_yield3)
+
+significant_yield_summary <- broom::tidy(model_yield) %>%
+  filter(p.value < 1)
+significant_yield_summary %>%
+  #mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 3, caption = "ANOVA Results for Total Grain Yield Model",
+        col.names = c("Term", "Degrees of Freedom", "Sum of Squares", "Mean Square", "F value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+# are any of the oat genotypes different in their mean yield, controlling for pea genotype and weed biomass 
+model_oat_yield <- lm(oat_grain_yield ~ germplasmName + peaName + pea_grain_yield + avg_biomass_s + blockNumber, data =  diversity_plots2)
+summary(model_oat_yield)
+
+significant_Oyield_summary <- broom::tidy(model_oat_yield) %>%
+  filter(p.value < 0.05)
+significant_Oyield_summary %>%
+  #mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 3, caption = "Significant Covariates in Linear Model for Oat Grain",
+        col.names = c("Term", "Estimate", "Std. Error", "t value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+
+model_pea_yield <- lm(pea_grain_yield ~ germplasmName + peaName + oat_grain_yield + avg_biomass_s + blockNumber, data =  diversity_plots2)
+summary(model_pea_yield)
+
+significant_Pyield_summary <- broom::tidy(model_pea_yield) %>%
+  filter(p.value < 0.05)
+significant_Pyield_summary %>%
+  #mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 3, caption = "Significant Covariates in Linear Model for Pea Grain",
+        col.names = c("Term", "Estimate", "Std. Error", "t value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+```
+
+```{r include=FALSE, echo=FALSE, eval=FALSE}
+# Checking Model Assumptions
+library(lmtest)
+
+## THIS NEEDS WORK
+# Function to check ANOVA assumptions
+check_anova_assumptions <- function(model, response_var) {
+  # Extract residuals directly from the model
+  residuals <- residuals(model)
+  
+  # Normality check using Q-Q plot
+  qq_plot <- ggplot(data = data.frame(residuals), aes(sample = residuals)) +
+    geom_qq() +
+    geom_qq_line() +
+    ggtitle(paste("Q-Q Plot for", response_var))
+  print(qq_plot)
+
+  # Homogeneity of variances using Levene's test
+  group_var <- as.formula(paste(response_var, "~ ."))  # Include all predictors
+  levene_result <- leveneTest(group_var, data = model$model)  # Ensure the model has a model component
+  print(levene_result)
+
+  # Independence: Print a message
+  cat("Check study design to ensure residuals are independent.\n")
+}
+
+
+# List of models to check
+models <- list(
+  model_oatbiomass = model_oatbiomass,
+  model_peabiomass = model_peabiomass,
+  model_oatbiomass2 = model_oatbiomass2,
+  model_peabiomass2 = model_peabiomass2,
+  model_oatbiomass3 = model_oatbiomass3,
+  model_peabiomass3 = model_peabiomass3
+)
+
+# Loop through each model and check assumptions
+for (model_name in names(models)) {
+  cat("\nChecking assumptions for model:", model_name, "\n")
+  res_var = colnames(models[[model_name]]$model)[1] # Extract the response variable name from the model object
+  check_anova_assumptions(models[[model_name]], response_var = res_var)
+}
+
+####
+hist(biomass2$oat_biomass)# bimodal
+  hist(biomass2$pea_biomass)# left skew
+hist(log(biomass2$pea_biomass))
+  hist(biomass2$weed_biomass)# left skew
+hist(sqrt(biomass2$weed_biomass))
+hist(biomass2$total_biomass) #bimodal
+hist(diversity_plots2$avg_biomass_s)
+hist(diversity_plots2$oat_grain_yield)
+  hist(diversity_plots2$pea_grain_yield) # left skew
+hist(log(diversity_plots2$pea_grain_yield))
+hist(diversity_plots2$total_yield)
+  hist(diversity_plots2$Lodging) #left skew
+hist(sqrt(diversity_plots2$Lodging))
+
+####
+#residuals should align closely along the 45-degree line if they follow a normal distribution.
+qqnorm(residuals(model3))
+#linearity: points should be randomly scattered around zero, indicating a linear relationship.
+plot((model3)$fitted.values, residuals((model3)),
+     main = "Residuals vs Fitted",
+     xlab = "Fitted values",
+     ylab = "Residuals")
+abline(h = 0, col = "red")
+#homoscedasity: residuals should have constant variance across levels of the predictor variables; H0 is constant to pvalue not significant is good
+bptest((model3)) # Breusch-Pagan Test
+#Independence of Residuals
+dwtest((model3)) #Durbin-Watson Test
+#outliers
+plot((model3), which = 4)  # Cook's distance plot
+plot((model3), which = 5)  # Leverage plot
+
+# model_totalbiomass has somthing going on ; biomass2$total_biomass is bimodal
+```
+
+```{r}
+model_peabiomass <- aov(formula = log(pea_biomass + 0.1) ~ germplasmName + peaName + pea_type + 
+    oat_biomass + weed_biomass, data = biomass2) # log tranform makes the zero values -Inf so have to add 0.1 to the transformation to make everything a number
+summary(model_peabiomass)
+
+significant_Pbio_summary <- broom::tidy(model_peabiomass) %>%
+  filter(p.value < 0.05)
+significant_Pbio_summary %>%
+  #mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 5, caption = "ANOVA Results for Pea Biomass Model",
+        col.names = c("Term", "Degrees of Freedom", "Sum of Squares", "Mean Square", "F value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+
+model3 <- lm(formula = log(pea_biomass + 0.1) ~ germplasmName + peaName + oat_biomass + 
+    weed_biomass + block_number, data = biomass2)
+summary(model3)
+
+significant_PbioLm_summary <- broom::tidy(model3) %>%
+  filter(p.value < 0.05)
+significant_PbioLm_summary %>%
+  #mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 3, caption = "Significant Covariates in Linear Model for Pea Grain",
+        col.names = c("Term", "Estimate", "Std. Error", "t value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+```{r include=FALSE, eval=FALSE}
+write.csv(data2, "data/2024_NY_SpringOatPea_cleaned.csv")
+```
+
+
+
+
