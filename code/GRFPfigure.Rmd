@@ -1,0 +1,413 @@
+---
+title: "GRFPfigure"
+date: "2024-10-06"
+output: html_document
+editor_options:
+  chunk_output_type: console
+output_dir: "/Users/leahtreffer/GitHub/OatPea_intercrop/docs"
+---
+
+```{r, echo=FALSE}
+knitr::opts_knit$set(root.dir = "/Users/leahtreffer/GitHub/OatPea_intercrop", echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+<br>
+
+## Packages
+```{r,  echo=FALSE}
+library(RColorBrewer)
+library(tidyverse)
+library(readxl)
+library(kableExtra)
+library(ggrepel)
+```
+
+
+## Yield by Locations Summary
+```{r,  include=FALSE, warning=FALSE}
+meta2023 <- read_csv("data/2023_plot_meta.csv") %>%
+  select(peaName, pea_type) %>%
+  distinct(peaName, .keep_all = TRUE)
+
+#Wisconsin <- read_excel("data/multi_location_data.xlsx",
+                                  #sheet = "Wisconsin", skip = 2) %>%
+
+  #mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
+  #mutate(pea_yield = as.numeric(`Pea grain yield - g/m2|COMP:0000049`)) %>%
+  #select(studyName,germplasmName,plotNumber,
+       #oat_yield,
+       #pea_yield,
+       #peaName) %>% 
+  #filter(plotNumber != 51)  ### plot 51 looks to have yield of oat and pea switched, removed for now
+
+#NY 2023
+Cornell23pt1 <- read_excel("data/2023_oat_pea_data.xlsx", sheet = "diversity") %>%
+  select(plot_id, Biomass_1_oat_g, Biomass_2_oat_g, Biomass_3_oat_g, Biomass_4_oat_g, 
+         Biomass_1_pea_g, Biomass_2_pea_g, Biomass_3_pea_g, Biomass_4_pea_g)
+
+Cornell23 <- read_excel("data/2023_multi_location_data.xlsx",
+                        sheet = "Cornell", skip = 2)%>%
+  filter(plotNumber != "27") %>%
+  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
+  mutate(pea_yield = as.numeric(`Pea grain yield - g/m2|COMP:0000049`)) %>%
+  mutate(studyLoc = "NY") %>%
+  mutate(plot_id = observationUnitDbId) %>%
+  mutate(Lodging = `Lodging severity - 0-9 Rating|day 221|COMP:0000018`) %>%
+  
+  left_join(Cornell23pt1, by="plot_id") %>%
+
+  select(studyName, studyYear, studyLoc, germplasmName, peaName, pea_type, observationLevel, 
+         observationUnitName, plotNumber, blockNumber, Biomass_1_oat_g, Biomass_2_oat_g, 
+         Biomass_3_oat_g, Biomass_4_oat_g, oat_yield, Lodging, Biomass_1_pea_g, 
+         Biomass_2_pea_g, Biomass_3_pea_g, Biomass_4_pea_g, pea_yield)
+#NY 2024
+Cornell24 <- read.csv("data/2024_NY_SpringOatPea_cleaned.csv") %>%
+  mutate(studyLoc = "NY") %>%
+  mutate(oat_yield = oat_grain_yield) %>%
+  mutate(pea_yield = pea_grain_yield) %>%
+  select(studyName, studyYear, studyLoc, germplasmName, peaName, pea_type, observationLevel, 
+         observationUnitName, plotNumber, blockNumber, Biomass_1_oat_g, Biomass_2_oat_g, 
+         Biomass_3_oat_g, Biomass_4_oat_g, oat_yield, Lodging, Biomass_1_pea_g, 
+         Biomass_2_pea_g, Biomass_3_pea_g, Biomass_4_pea_g, pea_yield)
+#NY Combined Years
+Cornell <- rbind(Cornell23, Cornell24)
+
+  
+#IL 2023
+Illinois23 <- read_excel("data/2023_multi_location_data.xlsx",
+                      sheet = "Illinois", skip = 2)%>%
+  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
+  mutate(pea_yield = as.numeric(`Pea grain yield - g/m2|COMP:0000049`)) %>%
+  mutate(studyLoc = "IL") %>%
+  
+  left_join(meta2023, by = "peaName") %>%
+  
+  select(studyName, studyYear, studyLoc, germplasmName, peaName, pea_type,
+         observationLevel, observationUnitName, plotNumber, blockNumber,
+         oat_yield, pea_yield)
+#IL 2024
+Illinois24 <- read.csv("data/SpringOatPeaIntercrop_2024_IL_phenotypes.csv") %>%
+  mutate(oat_yield = as.numeric(`Grain.yield...g.m2.CO_350.0000260`)) %>%
+  mutate(pea_yield = as.numeric(`Pea.grain.yield...g.m2.COMP.0000049`)) %>%
+  mutate(studyLoc = "IL")
+  
+colnames(Illinois24)[41:52] <- sub(".*_", "", colnames(Illinois24)[41:52])
+
+Illinois24[, 41:52] <- lapply(names(Illinois24)[41:52], function(col) {
+  ifelse(Illinois24[[col]] == 1, col, NA)
+})
+
+Illinois24$peaName <- apply(Illinois24[, 41:52], 1, function(x) {
+  na.omit(x)[1]
+})
+
+Illinois24 <- Illinois24 %>% 
+  mutate(peaName = gsub("\\.", " ", peaName)) %>%
+  left_join(meta2023, by = "peaName") %>%
+  mutate(pea_type = ifelse(is.na(pea_type) | pea_type == "", "monoculture", pea_type)) %>%
+  select(studyName, studyYear, studyLoc, germplasmName, peaName, pea_type,
+         observationLevel, observationUnitName, plotNumber, blockNumber,
+         oat_yield, pea_yield)
+# IL Combined Years
+Illinois <- rbind(Illinois23, Illinois24)
+
+
+
+#SDSU <- read_excel("data/multi_location_data.xlsx",
+                       #sheet = "SDSU", skip = 2)%>%
+  #mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
+  #mutate(pea_yield = as.numeric(`Pea grain yield - g/m2|COMP:0000049`)) %>%
+  #select(studyName,germplasmName,plotNumber,
+         #oat_yield,
+         #pea_yield,
+         #peaName)
+
+
+```
+
+
+```{r,  include=FALSE}
+# create the new data frame with the specified columns and only the rows where the observationLevel column is "plot"
+Cornell2 <- Cornell[Cornell$observationLevel == "plot", 
+                    c('studyName', 'studyYear', 'studyLoc', 'germplasmName', 'peaName', 'pea_type', 
+                      'observationLevel', 'observationUnitName', 'plotNumber', 'blockNumber', 
+                      'oat_yield', 'pea_yield')] 
+
+
+mulit_location_data <- bind_rows(Cornell2,Illinois) %>%
+  mutate(oat_fraction = oat_yield/(oat_yield +
+                         pea_yield)) %>%
+  mutate(location = studyLoc)
+
+
+```
+
+
+```{r,  echo=FALSE}
+mulit_location_data %>% 
+  kable(align = "c") %>% 
+  kable_classic(full_width=F,position = "left")%>% 
+ scroll_box(width = "900px", height = "300px")
+```
+
+```{r,  echo=FALSE, warning=FALSE}
+
+# can try grain yield and log grain yeild by changing following lines:
+  # ggplot(aes(grain_type, grain_g)) +
+  # geom_jitter(aes(grain_type, grain_g, color = pea_type), 
+
+mulit_location_data %>%
+  pivot_longer(oat_yield:pea_yield,
+               names_to = "grain_type", values_to = "grain_g") %>%
+  mutate(grain_type = str_replace(grain_type, "_yield", "")) %>%
+  mutate(log_grain_g = log(grain_g)) %>%
+  
+  # Create a new column that combines location and year
+  mutate(location_year = paste(location, studyYear, sep = "_")) %>%
+  
+  ggplot(aes(grain_type, grain_g)) +
+  geom_boxplot() +
+  geom_jitter(aes(grain_type, grain_g, color = pea_type), 
+              width = 0.25, size = 4, alpha = 0.75) +
+  
+  xlab("") +
+  ylab("Grain Yield (g/m2)") +
+  scale_color_manual(values = hcl.colors(3, palette = "Fall")) +
+  #scale_color_brewer(palette = "Dark2") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+  theme(axis.text = element_text(size = 20), axis.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 16)) +
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 16)) +
+  
+  # Facet by both location and year
+  facet_wrap(~location_year)
+
+```
+
+```{r include=FALSE}
+mulit_location_data$studyYear <- as.factor(mulit_location_data$studyYear)
+mulit_location_data$studyLoc <- as.factor(mulit_location_data$studyLoc)
+mulit_location_data$germplasmName <- as.factor(mulit_location_data$germplasmName)
+mulit_location_data$peaName <- as.factor(mulit_location_data$peaName)
+mulit_location_data$blockNumber <- as.factor(mulit_location_data$blockNumber)
+
+mulit_location_data <- mulit_location_data%>%
+    mutate(management = factor(ifelse(pea_type == "monoculture", "monoculture", "intercrop")))
+
+```
+
+```{r,  echo=TRUE}
+library(tidyverse)
+require(BGLR)
+library(kableExtra)
+```
+
+```{r}
+###
+grainWgt <- mulit_location_data %>%
+  mutate(oatYield = oat_yield) %>%
+  mutate(peaYield = pea_yield) %>%
+  mutate(peaAcc = peaName) %>%
+  mutate(blockNumberF=as.factor(paste(studyYear, location, blockNumber))) %>% #block factor
+  select(blockNumberF, studyYear, location, blockNumber,
+         plotNumber, management, germplasmName, peaAcc, oatYield, peaYield) 
+
+
+```
+
+```{r,  echo=TRUE}
+yTraits <- as.matrix(dplyr::select(grainWgt, contains("Yield")))# pulls oat yield and pea yield ; taking factors with yeild in them from grain weight table and making them a matrix # could have as many y varialbes in teh matrix as you want, will run each on thier own but no limit to waht matrix holds
+#factors into matrices
+incLocations <- model.matrix(~ -1 + location, grainWgt) # 0,1 for if plots existed in given location or not; going into grain weight table, pulling out location data, and turns it into 0,1 somehow 
+incBlocks <- model.matrix(~ -1 + blockNumberF, grainWgt)
+incOatAcc <- model.matrix(~ -1 + germplasmName, grainWgt)
+incPeaAcc <- model.matrix(~ -1 + peaAcc, grainWgt)
+incYear <- model.matrix(~ -1 + studyYear, grainWgt) #year factor
+incMngt <- model.matrix(~ -1 + management, grainWgt) # monoculture/intercrop factor
+
+# list of factor matrices
+ETA <- list(list(X=incLocations, model="FIXED"),
+            list(X=incBlocks, model="BRR"),
+            list(X=incOatAcc, model="BRR"),
+            list(X=incPeaAcc, model="BRR"),
+            list(X=incYear, model="BRR"),
+            list(X=incMngt, model="BRR")) 
+# the order of these is critical: nothing is labeled in matrices, so we need to know it's position to pull the right info out of results (through it's number rather than a name)
+
+# why are we using the models that we are?
+# why is location fixed and blocks something else?
+```
+
+```{r,  echo=FALSE}
+
+tst2 <- BGLR::Multitrait(yTraits, ETA, intercept=TRUE,
+                  resCov=list(df0=5,S0=NULL,type="UN"),
+                  R2=0.5,
+                  nIter=1000, burnIn=200,
+                  thin=10, saveAt="",verbose=FALSE)
+# leave df0 at 4? it's not degrees of freedom but what is it. default if 5 so why did we use 4 last year?
+# gives a lot of output
+```
+
+```{r,  echo=TRUE}
+# centered on zero (not representing a value) ; how many unit difference genotype has on Y
+
+oatEff <- tst2$ETA[[3]]$beta # results; test of ETA beta; lists all 48 oat genotypes; [,1] is oat genotype yield and [,2] is oat effect on any pea yield
+
+oatEffSD <- tst2$ETA[[3]]$SD.beta # standard deviation of beta; some estimate of accuracy 
+
+fitOE <- lm(oatEff[,1] ~ oatEff[,2]) # oat effect on oat yield, oat effect on pea yield
+
+oatEffCov <- tst2$ETA[[3]]$Cov$Omega # what is this
+
+
+peaEff <- tst2$ETA[[4]]$beta
+
+peaEffSD <- tst2$ETA[[4]]$SD.beta
+
+peaEffCov <- tst2$ETA[[4]]$Cov$Omega
+
+residYldCov <- tst2$resCov$R
+
+```
+
+```{r,  echo=FALSE, include=FALSE, warning=FALSE}
+
+
+oat_eff <- as_tibble(oatEff)
+
+
+ETA[[3]]$X
+
+oatName<-colnames(ETA[[3]]$X) %>% 
+  as_tibble() %>% 
+  mutate("oatName" = str_remove(value,"germplasmName")) %>% 
+  select(oatName)
+  
+oat_eff<- bind_cols(oat_eff,oatName) %>% 
+  rename("oat_g_on_oat_y" = V1, "oat_g_on_pea_y" = V2)
+
+
+oat_eff %>% 
+  filter(oat_g_on_oat_y > 0 & oat_g_on_pea_y > 0)
+
+
+oat_plot <- oat_eff %>% 
+  mutate(effect = if_else(oat_g_on_oat_y > 0 & oat_g_on_pea_y > 0,"positive","negative")) %>% 
+  ggplot(aes(`oat_g_on_oat_y`,`oat_g_on_pea_y`,color=effect))+
+  geom_point(size = 6)+
+  #geom_label_repel(aes(label = oatName),
+                  #box.padding   = 0.35, 
+                  #point.padding = 0.5,
+                  #segment.color = 'grey50')+
+  
+  xlab("Oat Genotype on Oat Yield")+
+  ylab("Oat Genotype on Pea Yield")+
+  scale_color_manual(values = hcl.colors(2, palette = "Fall")) +
+  #scale_color_brewer(palette="Dark2")+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle = 90, hjust = .5))+
+  theme(axis.text=element_text(size=20), axis.title=element_text(size=20,face="bold"))+
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 16))+
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 16)) +
+  geom_vline(xintercept = 0)+
+  geom_hline(yintercept = 0)+
+  theme(legend.position = "none")
+
+
+
+oat_plot
+
+
+```
+
+```{r,  echo=FALSE, warning=FALSE}
+
+oat_plot
+
+oat_eff %>% 
+  kable(align = "c") %>% 
+  kable_classic(full_width=F,position = "left")%>% 
+  scroll_box(width = "900px", height = "300px")
+```
+
+```{r,  echo=FALSE, include=FALSE}
+
+
+pea_eff <- as_tibble(peaEff)
+
+
+ETA[[4]]$X
+
+peaName<-colnames(ETA[[4]]$X) %>% 
+  as_tibble() %>% 
+  mutate("peaName" = str_remove(value,"peaAcc")) %>% 
+  select(peaName)
+  
+pea_eff<- bind_cols(pea_eff,peaName) %>% 
+  rename("pea_g_on_oat_y" = V1, "pea_g_on_pea_y" = V2)
+
+
+pea_eff %>% 
+  filter(pea_g_on_pea_y > 0 & pea_g_on_oat_y > 0)
+
+
+pea_eff %>% 
+  mutate(effect = if_else(pea_g_on_pea_y > 0 & pea_g_on_oat_y > 0,"positive","negative")) %>% 
+  ggplot(aes(`pea_g_on_pea_y`,`pea_g_on_oat_y`,color=effect))+
+  geom_point(size = 6)+
+  geom_text(aes(label=ifelse(effect=="positive",as.character(peaName),'')),hjust=0,vjust=.5,nudge_x = 2)+
+ 
+  ylab("Pea Genotype on Oat Yield")+
+  xlab("Pea Genotype on Pea Yield")+
+  
+  scale_color_manual(values = hcl.colors(2, palette = "Fall")) +
+  #scale_color_brewer(palette="Dark2")+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle = 90, hjust = .5))+
+  theme(axis.text=element_text(size=20), axis.title=element_text(size=20,face="bold"))+
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 16))+
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 16)) +
+  geom_vline(xintercept = 0)+
+  geom_hline(yintercept = 0)
+
+
+
+pea_plot <-  pea_eff %>% 
+  mutate(effect = if_else(pea_g_on_pea_y > 0 & pea_g_on_oat_y > 0,"positive","negative")) %>% 
+  ggplot(aes(`pea_g_on_pea_y`,`pea_g_on_oat_y`,color=effect))+
+  geom_vline(xintercept = 0)+
+  geom_hline(yintercept = 0)+
+  geom_point(size = 6)+
+  #geom_label_repel(aes(label = peaName),
+                  #box.padding   = 0.35, 
+                  #point.padding = 0.5,
+                  #segment.color = 'grey50')+
+  
+  xlab("Pea Genotype on Pea Yield")+
+  ylab("Pea Genotype on Oat Yield")+
+  scale_color_manual(values = hcl.colors(2, palette = "Fall")) +
+  #scale_color_brewer(palette="Dark2")+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle = 90, hjust = .5))+
+  theme(axis.text=element_text(size=20), axis.title=element_text(size=20,face="bold"))+
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 16))+
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 16)) +
+  theme(legend.position = "none")
+
+pea_plot
+
+```
+
+```{r,  echo=FALSE, warning=FALSE}
+
+pea_plot
+
+pea_eff %>% 
+  kable(align = "c") %>% 
+  kable_classic(full_width=F,position = "left")%>% 
+  scroll_box(width = "900px", height = "300px")
+
+```
+
