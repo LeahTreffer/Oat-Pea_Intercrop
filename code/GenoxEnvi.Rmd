@@ -1,0 +1,204 @@
+---
+title: "GenoxEnvi"
+author: "lkt38"
+date: "2024-09-21"
+output: html_document
+editor_options:
+  chunk_output_type: console
+output_dir: "/Users/leahtreffer/GitHub/OatPea_intercrop/docs"
+---
+
+Since there are oat plots replicated in locations and across locations, maybe we can use them to calculate GxE
+
+```{r, echo=FALSE}
+knitr::opts_knit$set(root.dir = "/Users/leahtreffer/GitHub/OatPea_intercrop", echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r eval=FALSE}
+setwd("/Users/leahtreffer/GitHub/OatPea_intercrop")
+```
+
+```{r}
+library(lme4)
+library(agricolae)
+library(BGLR)
+```
+
+```{r,  include=FALSE, warning=FALSE}
+
+meta2023 <- read_csv("data/2023_plot_meta.csv") %>%
+  select(peaName, pea_type) %>%
+  distinct(peaName, .keep_all = TRUE)
+
+#NY 2023
+NewYork23pt1 <- read_excel("data/2023_oat_pea_data.xlsx", sheet = "diversity") %>%
+  select(plot_id, Biomass_1_oat_g, Biomass_2_oat_g, Biomass_3_oat_g, Biomass_4_oat_g, 
+         Biomass_1_pea_g, Biomass_2_pea_g, Biomass_3_pea_g, Biomass_4_pea_g)
+
+NewYork23 <- read_excel("data/2023_multi_location_data.xlsx",
+                        sheet = "Cornell", skip = 2)%>%
+  filter(plotNumber != "27") %>%
+  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
+  mutate(pea_yield = as.numeric(`Pea grain yield - g/m2|COMP:0000049`)) %>%
+  mutate(total_grain = (oat_yield + pea_yield))%>%
+  mutate(studyLoc = "NY") %>%
+  mutate(plot_id = observationUnitDbId) %>%
+  mutate(Lodging = `Lodging severity - 0-9 Rating|day 221|COMP:0000018`) %>%
+  
+  left_join(NewYork23pt1, by="plot_id") %>%
+  mutate(management = factor(ifelse(pea_type == "monoculture", "monoculture", "intercrop")))%>%
+  
+  select(studyName, studyYear, studyLoc, replicate, blockNumber, plotNumber, germplasmName, peaName, pea_type, management, observationLevel, observationUnitName, oat_yield)
+# remove rows where there is no grain yield (53,66)
+NewYork23<-NewYork23[-c(53,66),]
+
+#NY 2024
+NewYork24 <- read.csv("data/2024_NY_SpringOatPea_cleaned.csv") %>%
+  mutate(studyLoc = "NY") %>%
+  mutate(oat_yield = oat_grain_yield) %>%
+  mutate(pea_yield = pea_grain_yield) %>%
+  mutate(total_grain = (oat_yield + pea_yield))%>%
+  mutate(management = factor(ifelse(pea_type == "monoculture", "monoculture", "intercrop")))%>%
+  select(studyName, studyYear, studyLoc, replicate, blockNumber, plotNumber, germplasmName, peaName, pea_type, management, observationLevel, observationUnitName, oat_yield)
+#NY Combined Years
+NewYork <- rbind(NewYork23, NewYork24)
+NewYork <- NewYork[NewYork$observationLevel == "plot",]
+NewYork <- NewYork[NewYork$management == "monoculture",]
+  
+#IL 2023
+Illinois23 <- read_excel("data/2023_multi_location_data.xlsx",
+                      sheet = "Illinois", skip = 2)%>%
+  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
+  mutate(pea_yield = as.numeric(`Pea grain yield - g/m2|COMP:0000049`)) %>%
+  mutate(total_grain = (oat_yield + pea_yield))%>%
+  
+  mutate(studyLoc = "IL") %>%
+  
+  left_join(meta2023, by = "peaName") %>%
+  mutate(management = factor(ifelse(pea_type == "monoculture", "monoculture", "intercrop")))%>%
+
+  select(studyName, studyYear, studyLoc, replicate, blockNumber, plotNumber, germplasmName, peaName, pea_type, management, observationLevel, observationUnitName, oat_yield)
+
+#IL 2024
+Illinois24 <- read.csv("data/SpringOatPeaIntercrop_2024_IL_phenotypes.csv") %>%
+  mutate(oat_yield = as.numeric(`Grain.yield...g.m2.CO_350.0000260`)) %>%
+  mutate(pea_yield = as.numeric(`Pea.grain.yield...g.m2.COMP.0000049`)) %>%
+  mutate(total_grain = (oat_yield + pea_yield))%>%
+  mutate(studyLoc = "IL")
+  
+colnames(Illinois24)[41:52] <- sub(".*_", "", colnames(Illinois24)[41:52])
+
+Illinois24[, 41:52] <- lapply(names(Illinois24)[41:52], function(col) {
+  ifelse(Illinois24[[col]] == 1, col, NA)
+})
+
+Illinois24$peaName <- apply(Illinois24[, 41:52], 1, function(x) {
+  na.omit(x)[1]
+})
+
+Illinois24 <- Illinois24 %>% 
+  mutate(peaName = gsub("\\.", " ", peaName)) %>%
+  left_join(meta2023, by = "peaName") %>%
+  mutate(pea_type = ifelse(is.na(pea_type) | pea_type == "", "monoculture", pea_type)) %>%
+  mutate(management = factor(ifelse(pea_type == "monoculture", "monoculture", "intercrop")))%>%
+
+  select(studyName, studyYear, studyLoc, replicate, blockNumber, plotNumber, germplasmName, peaName, pea_type, management, observationLevel, observationUnitName, oat_yield)
+
+# IL Combined Years
+Illinois <- rbind(Illinois23, Illinois24)
+Illinois <- Illinois[Illinois$management == "monoculture",]
+
+
+#SD 2023
+SDSU23 <- read_excel("data/2023_multi_location_data.xlsx",
+                       sheet = "SDSU", skip = 2)%>%
+  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
+  mutate(pea_yield = as.numeric(`Pea grain yield - g/m2|COMP:0000049`)) %>%
+  mutate(total_grain = (oat_yield + pea_yield))%>%
+  mutate(studyLoc = "SD") %>%
+  left_join(meta2023, by="peaName")%>%
+  mutate(management = factor(ifelse(pea_type == "monoculture", "monoculture", "intercrop")))%>%
+  select(studyName, studyYear, studyLoc, replicate, blockNumber, plotNumber, germplasmName, peaName, pea_type, management, observationLevel, observationUnitName, oat_yield)
+#SD 2024
+SDSU24 <- read.csv("data/SpringOatPeaIntercrop_2024_SD_phenotypes.csv")%>%
+  mutate(oat_yield = as.numeric(`Grain.yield...g.m2.CO_350.0000260`)) %>%
+  mutate(pea_yield = as.numeric(`Pea.grain.yield...g.m2.COMP.0000049`)) %>%
+  mutate(total_grain = (oat_yield + pea_yield))%>%
+  mutate(studyLoc = "SD")
+#  get pea names from correct columns and make one peaName column
+colnames(SDSU24)[40:51] <- sub(".*_", "", colnames(SDSU24)[40:51])
+
+SDSU24[, 40:51] <- lapply(names(SDSU24)[40:51], function(col) {
+  ifelse(SDSU24[[col]] == 1, col, NA)
+})
+
+SDSU24$peaName <- apply(SDSU24[, 40:51], 1, function(x) {
+  na.omit(x)[1]
+})
+
+SDSU24 <- SDSU24 %>% 
+  mutate(peaName = gsub("\\.", " ", peaName)) %>% #replace the . in the names with a space
+  left_join(meta2023, by = "peaName") %>%
+  mutate(pea_type = ifelse(is.na(pea_type) | pea_type == "", "monoculture", pea_type)) %>%
+  mutate(management = factor(ifelse(pea_type == "monoculture", "monoculture", "intercrop")))%>%
+
+  select(studyName, studyYear, studyLoc, replicate, blockNumber, plotNumber, germplasmName, peaName, pea_type, management, observationLevel, observationUnitName, oat_yield)
+# SD Combined Years
+SouthDakota <- rbind(SDSU23, SDSU24)
+SouthDakota <- SouthDakota[SouthDakota$management == "monoculture",]
+
+```
+
+```{r,  include=FALSE}
+
+combined <- bind_rows(Illinois,NewYork,SouthDakota)
+
+```
+
+```{r}
+#colnames(combined)
+combined$studyName <- as.character(combined$studyName)
+combined$studyYear <- as.factor(combined$studyYear)
+combined$studyLoc <- as.factor(combined$studyLoc)
+combined$replicate <- as.factor(combined$replicate)
+combined$blockNumber <- as.factor(combined$blockNumber)
+combined$plotNumber <- as.character(combined$plotNumber)
+combined$germplasmName <- as.character(combined$germplasmName)
+combined$peaName <- as.character(combined$peaName)
+combined$pea_type <- as.factor(combined$pea_type)
+combined$management <- as.factor(combined$management)
+combined$observationLevel <- as.character(combined$observationLevel)
+combined$observationUnitName <- as.character(combined$observationUnitName)
+combined$oat_yield <- as.numeric(combined$oat_yield)
+```
+
+```{r}
+combined <- combined[,c(2,3,4,5,6,7,12,13)]
+combined$environment <- paste(combined$studyLoc,"_",combined$studyYear) # year and location as a unique environment 
+combined$blockNumberF <- as.factor(paste(combined$studyYear, combined$studyLoc, combined$blockNumber)) # this makes blocks unique since block 1 in NY isn't same as block 1 in IL
+```
+
+```{r}
+# A random intercept for replicate is used to account for repeated measurements
+model <- lmer(oat_yield ~ germplasmName * environment + (1 | blockNumberF), data = combined)
+
+# View the model summary
+summary(model)
+
+# Check the significance of fixed effects
+anova(model)
+
+```
+
+```{r}
+# Interaction plot for visualizing G × E interaction
+interaction.plot(combined$environment, combined$germplasmName, combined$oat_yield, 
+                 type = "b", legend = TRUE, 
+                 xlab = "Environment", ylab = "Yield", 
+                 trace.label = "Genotype")
+
+```
+
+```{r}
+
+```
