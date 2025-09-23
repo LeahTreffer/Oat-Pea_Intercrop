@@ -6,6 +6,8 @@
 # intercrops and monocrops of oat and pea
 # each accession exists has a monoculture and as one intercrop with an accession of the other species
 # each plot divided into 3 subplots; subplot 1 always north side and subplot 3 always the south side
+# seeding rate for the monocultures was 54g oat mono, 8 seed per square ft pea mono
+# intercrops were planted at a percentage of those seeding rates: 40% oat and 60% pea
 
 # PAR measurements taken using a LiCor LI-188B
 # Integration = 10
@@ -21,6 +23,7 @@
 
 # Raw data : https://cornell.app.box.com/folder/342321167330
 # data exists elsewhere for plant height, biomass, stand count (taken in Fieldbook, might be uploaded eventually to T3)
+# Since seeding rates are different between interfrop and monoculture, we will want to have the standcounts (emergence) data
 
 ################################################################################
 
@@ -40,6 +43,7 @@ library(readxl)
 library(ggplot2)
 
 LiCor <- read_excel("data/T1_T2_T3_light_interception.xlsx", sheet = 'Long')
+standcount <-
 
 LiCor$plot_number <- as.factor(LiCor$plot_number)
 LiCor$subplot_number <- as.factor(LiCor$subplot_number)
