@@ -1,0 +1,385 @@
+---
+title: "Grain-Biomass-Locations"
+author: "lkt38"
+date: "2024-09-21"
+output: html_document
+editor_options:
+  chunk_output_type: console
+output_dir: "/Users/leahtreffer/GitHub/OatPea_intercrop/docs"
+---
+
+# Looking at locations that had both biomass and grain to see if there is a correlation between biomass and grain.
+
+```{r, echo=FALSE}
+knitr::opts_knit$set(root.dir = "/Users/leahtreffer/GitHub/OatPea_intercrop", echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r eval=FALSE}
+setwd("/Users/leahtreffer/GitHub/OatPea_intercrop")
+```
+
+## load libraries
+```{r,  echo=FALSE}
+library(RColorBrewer)
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(kableExtra)
+library(ggrepel)
+library(ggplot2)
+library(ggfortify)  # For autoplot function for PCA
+library(lme4)
+library(emmeans)
+library(performance)
+library(corrplot)
+library(emmeans)
+library(broom.mixed)
+library(knitr)
+```
+
+## load in and manipulate data files
+```{r,  include=FALSE, warning=FALSE}
+
+meta2023 <- read_csv("data/2023_plot_meta.csv") %>%
+  select(peaName, pea_type) %>%
+  distinct(peaName, .keep_all = TRUE)
+
+#NY 2023
+NewYork23pt1 <- read_excel("data/2023_oat_pea_data.xlsx", sheet = "diversity") %>%
+  select(plot_id, Biomass_1_oat_g, Biomass_2_oat_g, Biomass_3_oat_g, Biomass_4_oat_g,
+         Biomass_1_pea_g, Biomass_2_pea_g, Biomass_3_pea_g, Biomass_4_pea_g)
+
+NewYork23 <- read_excel("data/2023_multi_location_data.xlsx",
+                        sheet = "Cornell", skip = 2)%>%
+  filter(plotNumber != "27") %>%
+  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
+  mutate(pea_yield = as.numeric(`Pea grain yield - g/m2|COMP:0000049`)) %>%
+  mutate(total_grain = (oat_yield + pea_yield))%>%
+  mutate(studyLoc = "NY") %>%
+  mutate(plot_id = observationUnitDbId) %>%
+  mutate(Lodging = `Lodging severity - 0-9 Rating|day 221|COMP:0000018`) %>%
+  
+  left_join(NewYork23pt1, by="plot_id") %>%
+
+  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, peaName, pea_type, observationLevel, observationUnitName, oat_yield, pea_yield, total_grain, Biomass_1_oat_g, Biomass_2_oat_g, Biomass_3_oat_g, Biomass_4_oat_g, Biomass_1_pea_g, Biomass_2_pea_g, Biomass_3_pea_g, Biomass_4_pea_g)
+# remove rows where there is no grain yield (53,66)
+NewYork23<-NewYork23[-c(53,66),]
+
+#NY 2024
+NewYork24 <- read.csv("data/2024_NY_SpringOatPea_cleaned2.csv") %>%
+  mutate(studyLoc = "NY") %>%
+  mutate(oat_yield = oat_grain_yield) %>%
+  mutate(pea_yield = pea_grain_yield) %>%
+  mutate(total_grain = (oat_yield + pea_yield))%>%
+  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, peaName, pea_type, observationLevel, observationUnitName, oat_yield, pea_yield, total_grain, Biomass_Time,   Biomass_1_oat_g, Biomass_2_oat_g, Biomass_3_oat_g, Biomass_4_oat_g,
+Biomass_1_pea_g, Biomass_2_pea_g, Biomass_3_pea_g, Biomass_4_pea_g, 
+Biomass_1_weed_g, Biomass_2_weed_g, Biomass_3_weed_g, Biomass_4_weed_g)
+#NY Combined Years
+NewYork23$Biomass_1_weed_g <- NA
+NewYork23$Biomass_2_weed_g <- NA
+NewYork23$Biomass_3_weed_g <- NA
+NewYork23$Biomass_4_weed_g <- NA
+NewYork23$Biomass_Time <- NA
+NewYork23 <- NewYork23[,c('studyName', 'studyYear', 'studyLoc', 'replicate', 'blockNumber', 'rowNumber', 'colNumber', 'plotNumber', 'germplasmName', 'peaName', 'pea_type', 'observationLevel', 'observationUnitName', 'oat_yield', 'pea_yield', 'total_grain', 'Biomass_Time',   'Biomass_1_oat_g', 'Biomass_2_oat_g', 'Biomass_3_oat_g', 'Biomass_4_oat_g',
+'Biomass_1_pea_g', 'Biomass_2_pea_g', 'Biomass_3_pea_g', 'Biomass_4_pea_g', 
+'Biomass_1_weed_g', 'Biomass_2_weed_g', 'Biomass_3_weed_g', 'Biomass_4_weed_g')]
+NewYork <- rbind(NewYork23, NewYork24)
+
+NewYork$studyYear <- as.factor(NewYork$studyYear)
+NewYork$studyLoc <- as.factor(NewYork$studyLoc)
+NewYork$replicate <- as.factor(NewYork$replicate)
+NewYork$blockNumber <- as.factor(NewYork$blockNumber)
+NewYork$rowNumber <- as.factor(NewYork$rowNumber)
+NewYork$colNumber <- as.factor(NewYork$colNumber)
+NewYork$plotNumber <- as.character(NewYork$plotNumber)
+NewYork$germplasmName <- as.character(NewYork$germplasmName)
+NewYork$peaName <- as.character(NewYork$peaName)
+NewYork$pea_type <- as.character(NewYork$pea_type)
+NewYork$observationLevel <- as.character(NewYork$observationLevel)
+NewYork$observationUnitName <- as.character(NewYork$observationUnitName)
+NewYork$oat_yield <- as.numeric(NewYork$oat_yield)
+NewYork$pea_yield <- as.numeric(NewYork$pea_yield)
+NewYork$total_grain <- as.numeric(NewYork$total_grain)
+NewYork$Biomass_Time <- as.factor((NewYork$Biomass_Time))
+
+NewYork_plot <- NewYork[NewYork$observationLevel == "plot",]
+
+```
+
+## Yield Histogram for all locations
+```{r}
+custom_colors <- c(
+  "2023.NY" = "#1F28A2",  # Medium Blue for New York 2023
+  "2024.NY" = "#9D9ED4",  # Sky Blue for New York 2024
+)
+
+ggplot(NewYork_plot, aes(x = oat_yield)) +
+  geom_histogram(aes(y = ..density..), color = "black", fill = "gray", bins = 30, alpha = 0.5) +
+  geom_density(aes(color = interaction(studyYear, studyLoc)), size = 1) +
+  scale_color_manual(values = custom_colors) +
+  labs(
+    #title = "Distribution with Density Lines by Year and Location",
+    x = "Value",
+    y = "Density",
+    color = "Year & Location"
+  ) +
+  theme_minimal()
+
+
+ggplot(NewYork_plot, aes(x = log(pea_yield+0.1))) +
+  geom_histogram(aes(y = ..density..), color = "black", fill = "gray", bins = 30, alpha = 0.5) +
+  geom_density(aes(color = interaction(studyYear, studyLoc)), size = 1) +
+  scale_color_manual(values = custom_colors) +
+  labs(
+    #title = "Distribution with Density Lines by Year and Location",
+    x = "Value",
+    y = "Density",
+    color = "Year & Location"
+  ) +
+  theme_minimal()
+
+rm(custom_colors)
+
+NewYork_plot$pea_yield_log <- log(NewYork_plot$pea_yield+0.1)
+
+
+```
+
+## Grain Correlations
+```{r}
+corr_grain = cor(NewYork_plot[,c("oat_yield", "pea_yield_log", "total_grain")], use="pairwise.complete.obs", method="pearson")
+
+corrplot.mixed(
+  corr_grain,
+  lower = "circle",
+  upper = "number",
+  lower.col = NA,       # Make lower part blank if needed
+  tl.cex = 0.6          # Adjust this value to decrease font size of trait labels
+)
+
+
+corr_NY23 = cor(NewYork23[,c("oat_yield", "pea_yield", "total_grain")], use="pairwise.complete.obs", method="pearson")
+
+corrplot.mixed(
+  corr_NY23,
+  lower = "circle",
+  upper = "number",
+  lower.col = NA,       # Make lower part blank if needed
+  tl.cex = 0.6          # Adjust this value to decrease font size of trait labels
+)
+
+corr_NY24 = cor(NewYork24[,c("oat_yield", "pea_yield", "total_grain")], use="pairwise.complete.obs", method="pearson")
+
+corrplot.mixed(
+  corr_NY24,
+  lower = "circle",
+  upper = "number",
+  lower.col = NA,       # Make lower part blank if needed
+  tl.cex = 0.6          # Adjust this value to decrease font size of trait labels
+)
+
+rm(corr_grain, corr_NY23, corr_NY24)
+```
+
+```{r}
+rm(Illinois, Illinois23, Illinois24, meta2023, NewYork, NewYork23, NewYork23pt1, NewYork24, SDSU23, SDSU24, SouthDakota, Wisconsin23)
+```
+
+
+## mixed linear model
+```{r}
+# biomass 
+model <- lmer(oat_yield ~ germplasmName + peaName + pea_type + management + pea_yield + studyLoc + (1 | studyLoc/observationUnitName), data = multi_location_data)
+
+# Overall ANOVA
+anova(model)
+
+# Pairwise comparisons
+pairwise_comparisons <- emmeans(model, pairwise ~ location)
+summary(pairwise_comparisons)
+
+```
+
+## model assumptions
+```{r}
+#model assumptions
+
+# Plot residuals vs fitted values to check for homogeneity of variance
+plot(fitted(model), resid(model),
+     main = "Residuals vs Fitted",
+     xlab = "Fitted values",
+     ylab = "Residuals")
+abline(h = 0, col = "red")
+
+# Check for normality of residuals with a Q-Q plot
+qqnorm(resid(model), main = "Q-Q Plot of Residuals")
+qqline(resid(model), col = "red")
+
+# Alternatively, use performance::check_model for a comprehensive diagnostic check
+check_model(model)
+```
+
+## spatial correction for mixed linear model
+## Oat Yield
+```{r}
+# multi-location mixed-effects model with spatial correction
+# Since spatial variation may differ between locations, include location as a random effect in the model
+
+model1 <- lmer(oat_yield ~ germplasmName + peaName + pea_yield + (1 | studyLoc), data = multi_location_data)
+model2 <- lmer(oat_yield ~ germplasmName + peaName + (1 | studyLoc), data = multi_location_data)
+model3 <- lmer(oat_yield ~ germplasmName + peaName + pea_yield + (1 | studyLoc/blockNumber), data = multi_location_data)
+model4 <- lmer(oat_yield ~ germplasmName + peaName + (1 | studyLoc/blockNumber), data = multi_location_data)
+model5 <- lmer(oat_yield ~ germplasmName * peaName + (1 | studyLoc), data = multi_location_data)
+
+
+# Compare models with anova to see both AIC and model fit statistics
+#anova(model1, model2, model3, model4)
+aic_values <- AIC(model1, model2, model3, model4, model5, model6)
+print(aic_values)
+
+# best AIC was model5
+
+model_oat <- lmerTest::lmer(oat_yield ~ germplasmName * peaName + (1 | studyLoc), data = multi_location_data)
+
+# Perform Type III ANOVA to test the significance of each term as a group
+# significance tests for each fixed effect in your model after accounting for all other effects
+anova_results <- anova(model_oat, type = 3)
+anova_results
+# Sum Sq (Sum of Squares): represents the amount of variance in the response variable that is explained by each predictor or interaction term in the model.Higher sums of squares indicate a larger contribution of that factor to explaining variability in the response variable.
+# Mean Sq (Mean Square): sum of squares divided by the degrees of freedom for each effect.Used to calculate the F-value and indicates how much of the variance can be attributed to that effect on average.
+# F-value: ratio of the mean square of the effect to the mean square of the error (residuals). A higher F-value indicates a more significant effect, suggesting that the variance explained by this effect is large relative to the residual variance.
+# Pr(>F): p-value associated with the F-test for each effect. A small p-value (typically < 0.05) suggests that the effect is statistically significant, meaning it has a significant impact on the response variable after accounting for all other effects.
+
+
+# Create a table of significant results
+significant_summary <- broom.mixed::tidy(model_oat, effects = "fixed") %>%
+  filter(p.value < 0.05)
+
+significant_summary %>%
+  select(term, estimate, std.error, statistic, p.value) %>%
+  mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 3, caption = "Significant Covariates in Linear Mixed Model for Oat Yield",
+        col.names = c("Term", "Estimate", "Std. Error", "t value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+
+anova_results %>%
+  select(`Sum Sq`, `Mean Sq`, NumDF, `F value`, `Pr(>F)`) %>%
+  kable(digits = 5, caption = "Significant Covariates in Linear Mixed Model for Oat Yield",
+        col.names = c("Sum Sq", "Mean Sq", "NumDF", "F value", "Pr(>F)")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+
+
+# Likelihood Ratio test to determine significance of random effect (location)
+# Compare the full and reduced models 
+
+model_reduced <- lm(oat_yield ~ germplasmName * peaName, data = multi_location_data)
+
+# Likelihood ratio test
+anova(model_reduced, model_oat)
+
+rm(model1, model2, model3, model4, model5, significant_summary, aic_values, anova_results, full_model)
+```
+
+## Pea Yield
+```{r}
+# multi-location mixed-effects model with spatial correction
+# Since spatial variation may differ between locations, include location as a random effect in the model
+
+model1 <- lmer(pea_yield ~ germplasmName + peaName + oat_yield + (1 | studyLoc), data = multi_location_data)
+model2 <- lmer(pea_yield ~ germplasmName + peaName + (1 | studyLoc), data = multi_location_data)
+model3 <- lmer(pea_yield ~ germplasmName + peaName + oat_yield + (1 | studyLoc/blockNumber), data = multi_location_data)
+model4 <- lmer(pea_yield ~ germplasmName + peaName + (1 | studyLoc/blockNumber), data = multi_location_data)
+model5 <- lmer(pea_yield ~ germplasmName * peaName + (1 | studyLoc), data = multi_location_data)
+
+
+# Compare models with anova to see both AIC and model fit statistics
+#anova(model1, model2, model3, model4)
+aic_values <- AIC(model1, model2, model3, model4, model5)
+print(aic_values)
+
+# best AIC was model5
+
+model_pea <- lmerTest::lmer(pea_yield ~ germplasmName * peaName + (1 | studyLoc), data = multi_location_data)
+
+# Perform Type III ANOVA to test the significance of each term as a group
+# significance tests for each fixed effect in your model after accounting for all other effects
+anova_results <- anova(model_pea, type = 3)
+anova_results
+# Sum Sq (Sum of Squares): represents the amount of variance in the response variable that is explained by each predictor or interaction term in the model.Higher sums of squares indicate a larger contribution of that factor to explaining variability in the response variable.
+# Mean Sq (Mean Square): sum of squares divided by the degrees of freedom for each effect.Used to calculate the F-value and indicates how much of the variance can be attributed to that effect on average.
+# F-value: ratio of the mean square of the effect to the mean square of the error (residuals). A higher F-value indicates a more significant effect, suggesting that the variance explained by this effect is large relative to the residual variance.
+# Pr(>F): p-value associated with the F-test for each effect. A small p-value (typically < 0.05) suggests that the effect is statistically significant, meaning it has a significant impact on the response variable after accounting for all other effects.
+
+
+# Create a table of significant results
+significant_summary <- broom.mixed::tidy(model_pea, effects = "fixed") %>%
+  filter(p.value < 0.05)
+
+significant_summary %>%
+  select(term, estimate, std.error, statistic, p.value) %>%
+  mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 3, caption = "Significant Covariates in Linear Mixed Model for Pea Yield",
+        col.names = c("Term", "Estimate", "Std. Error", "t value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+anova_results %>%
+  select(`Sum Sq`, `Mean Sq`, NumDF, `F value`, `Pr(>F)`) %>%
+  kable(digits = 5, caption = "Significant Covariates in Linear Mixed Model for Pea Yield",
+        col.names = c("Sum Sq", "Mean Sq", "NumDF", "F value", "Pr(>F)")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+rm(model1, model2, model3, model4, model5, significant_summary, aic_values, anova_results)
+```
+
+## Total Yield
+```{r}
+# multi-location mixed-effects model with spatial correction
+# Since spatial variation may differ between locations, include location as a random effect in the model
+
+model1 <- lmer(total_grain ~ germplasmName + peaName + oat_yield + pea_yield + (1 | studyLoc), data = multi_location_data)
+model2 <- lmer(total_grain ~ germplasmName + peaName + (1 | studyLoc), data = multi_location_data)
+model3 <- lmer(total_grain ~ germplasmName + peaName + oat_yield + pea_yield + (1 | studyLoc/blockNumber), data = multi_location_data)
+model4 <- lmer(total_grain ~ germplasmName + peaName + (1 | studyLoc/blockNumber), data = multi_location_data)
+model5 <- lmer(total_grain ~ germplasmName * peaName + (1 | studyLoc), data = multi_location_data)
+
+
+# Compare models with anova to see both AIC and model fit statistics
+#anova(model1, model2, model3, model4)
+aic_values <- AIC(model1, model2, model3, model4, model5)
+print(aic_values)
+
+# best AIC was model5
+
+model_total <- lmerTest::lmer(total_grain ~ germplasmName * peaName + (1 | studyLoc), data = multi_location_data)
+
+# Perform Type III ANOVA to test the significance of each term as a group
+# significance tests for each fixed effect in your model after accounting for all other effects
+anova_results <- anova(model_total, type = 3)
+anova_results
+# Sum Sq (Sum of Squares): represents the amount of variance in the response variable that is explained by each predictor or interaction term in the model.Higher sums of squares indicate a larger contribution of that factor to explaining variability in the response variable.
+# Mean Sq (Mean Square): sum of squares divided by the degrees of freedom for each effect.Used to calculate the F-value and indicates how much of the variance can be attributed to that effect on average.
+# F-value: ratio of the mean square of the effect to the mean square of the error (residuals). A higher F-value indicates a more significant effect, suggesting that the variance explained by this effect is large relative to the residual variance.
+# Pr(>F): p-value associated with the F-test for each effect. A small p-value (typically < 0.05) suggests that the effect is statistically significant, meaning it has a significant impact on the response variable after accounting for all other effects.
+
+
+# Create a table of significant results
+significant_summary <- broom.mixed::tidy(model_total, effects = "fixed") %>%
+  filter(p.value < 0.05)
+
+significant_summary %>%
+  select(term, estimate, std.error, statistic, p.value) %>%
+  mutate(p.value = format(p.value, scientific = TRUE)) %>%
+  kable(digits = 3, caption = "Significant Covariates in Linear Mixed Model for Total Grain Yield",
+        col.names = c("Term", "Estimate", "Std. Error", "t value", "P value")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+anova_results %>%
+  select(`Sum Sq`, `Mean Sq`, NumDF, `F value`, `Pr(>F)`) %>%
+  kable(digits = 5, caption = "Significant Covariates in Linear Mixed Model for Total Grain Yield",
+        col.names = c("Sum Sq", "Mean Sq", "NumDF", "F value", "Pr(>F)")) %>%
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
+
+rm(model1, model2, model3, model4, model5, significant_summary, aic_values, anova_results)
+```

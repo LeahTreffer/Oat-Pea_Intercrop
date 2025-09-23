@@ -30,7 +30,7 @@ library(lme4)
 ```
 
 
-## Yield by Locations Summary
+## Load data files
 ```{r,  include=FALSE, warning=FALSE}
 meta2023 <- read_csv("data/2023_plot_meta.csv") %>%
   select(peaName, pea_type) %>%
@@ -76,7 +76,7 @@ NewYork23 <- read_excel("data/2023_multi_location_data.xlsx",
          Biomass_3_oat_g, Biomass_4_oat_g, oat_yield, Lodging, Biomass_1_pea_g, 
          Biomass_2_pea_g, Biomass_3_pea_g, Biomass_4_pea_g, pea_yield)
 #NY 2024
-NewYork24 <- read.csv("data/2024_NY_SpringOatPea_cleaned.csv") %>%
+NewYork24 <- read.csv("data/2024_NY_SpringOatPea_cleaned2.csv") %>%
   mutate(studyLoc = "NY") %>%
   mutate(oat_yield = oat_grain_yield) %>%
   mutate(pea_yield = pea_grain_yield) %>%
@@ -237,9 +237,10 @@ ggplot(data, aes(x = germplasmName, y = oat_yield)) +
 
 ```
 
-```{f}
+```{r}
 #Calculate mean and standard deviation:
 ##group  data by oat Genotype and then calculate the mean and standard deviation of oat yield
+# this is the mean of both intercrop and monoculture together
 summary_stats <- mulit_location_data %>%
   group_by(germplasmName) %>%
   summarise(
@@ -251,8 +252,8 @@ summary_stats
 ```
 
 ```{r}
-#what is the mean oat value in intercrop
-#what is the mean oat value in monoculture
+#what is the mean oat grain yield in intercrop
+#what is the mean oat grain yield in monoculture
 summary_stats <- data %>%
   group_by(germplasmName, Planting_Group) %>%
   summarise(
@@ -264,10 +265,13 @@ summary_stats <- data %>%
 # Print the summary statistics
 summary_stats
 
+#write.csv(summary_stats, "output/mean_grain_yield.csv")
+
 # is there a significant difference between how the genotype performs as a monoculture compared to as an intercrop
 
 # Linear model with planting group and genotype
 model <- lm(oat_yield ~ Planting_Group * germplasmName + location, data = data)
+model <- lmer(oat_yield ~ Planting_Group * germplasmName + location + (1|blockNumber), data = data)
 
 # Check the summary of the model
 summary(model)
@@ -282,7 +286,7 @@ summary(anova_model)
 
 ```{f}
 #Calculate mean and standard deviation:
-##group  data by oat Genotype and then calculate the mean and standard deviation of oat yield
+##group  data by oat Genotype and then calculate the mean and standard deviation of pea yield
 summary_stats_pea <- mulit_location_data %>%
   group_by(peaName) %>%
   summarise(
@@ -295,8 +299,8 @@ summary_stats_pea <- summary_stats_pea[1:12,] #remove the last row which has not
 ```
 
 ```{r}
-#what is the mean oat value in intercrop
-#what is the mean oat value in monoculture
+#what is the mean pea grain yield in intercrop
+#what is the mean pea grain yield in monoculture
 summary_stats_pea2 <- data %>%
   group_by(peaName, Planting_Group) %>%
   summarise(
@@ -376,7 +380,7 @@ ggplot(summary_stats2, aes(x = germplasmName, y = peaName, fill = mean_plot_yiel
 # is the total grain yield of the plot higher in the intercrop than the monoculture
 # start by looking at just NY
 
-data2 <- read.csv("data/2024_NY_SpringOatPea_cleaned.csv")
+data2 <- read.csv("data/2024_NY_SpringOatPea_cleaned2.csv")
 
 data3 <- data2 %>%
   mutate(pair = ceiling(plotNumber / 2))%>%
@@ -617,193 +621,4 @@ ggplot(combined_pairs_oat, aes(x = oat_location, y = peaName, fill = yield_diffe
 
 ```
 
-```{r}
-# random stuff to try to format better 
 
-blank_row <- data.frame(
-  germplasmName = "",
-  peaName = "", 
-  pea_type = "",
-  intercrop_yield = NA,
-  monoculture_yield = NA,
-  yield_difference = NA,
-  location = "",
-  oat_location = "", 
-  stringsAsFactors = FALSE
-)
-
-combined_pairs_oat2 <- rbind(combined_pairs_oat[c(1:4),], blank_row, combined_pairs_oat[c(5:8),], blank_row, combined_pairs_oat[c(9:12),], blank_row, combined_pairs_oat[c(13:16),], blank_row, combined_pairs_oat[c(17:20),], blank_row, combined_pairs_oat[c(21:24),], blank_row, combined_pairs_oat[c(25:28),],blank_row, combined_pairs_oat[c(29:32),], blank_row, combined_pairs_oat[c(33:36),], blank_row, combined_pairs_oat[c(37:40),], blank_row, combined_pairs_oat[c(41:44),], blank_row, combined_pairs_oat[c(45:48),], blank_row, combined_pairs_oat[c(49:52),], blank_row, combined_pairs_oat[c(53:56),], blank_row, combined_pairs_oat[c(57:60),], blank_row, combined_pairs_oat[c(61:66),], blank_row, combined_pairs_oat[c(67:70),], blank_row, combined_pairs_oat[c(71:74),], blank_row, combined_pairs_oat[c(75:78),], blank_row, combined_pairs_oat[c(79:82),], blank_row, combined_pairs_oat[c(83:86),], blank_row, combined_pairs_oat[c(87:90),], blank_row, combined_pairs_oat[c(91:96),], blank_row, combined_pairs_oat[c(97:100),], blank_row, combined_pairs_oat[c(101:104),], blank_row, combined_pairs_oat[c(105:108),], blank_row, combined_pairs_oat[c(109:112),], blank_row, combined_pairs_oat[c(113:116),], blank_row, combined_pairs_oat[c(117:122),], blank_row, combined_pairs_oat[c(123:126),], blank_row, combined_pairs_oat[c(127:130),], blank_row, combined_pairs_oat[c(131:134),], blank_row, combined_pairs_oat[c(135:138),], blank_row, combined_pairs_oat[c(139:142),], blank_row, combined_pairs_oat[c(143:146),], blank_row, combined_pairs_oat[c(147:150),], blank_row, combined_pairs_oat[c(151:154),], blank_row, combined_pairs_oat[c(155:158),], blank_row, combined_pairs_oat[c(159:164),], blank_row, combined_pairs_oat[c(165:168),], blank_row, combined_pairs_oat[c(169:172),], blank_row, combined_pairs_oat[c(173:176),], blank_row, combined_pairs_oat[c(177:180),], blank_row, combined_pairs_oat[c(181:184),], blank_row, combined_pairs_oat[c(185:188),], blank_row, combined_pairs_oat[c(189:192),], blank_row, combined_pairs_oat[c(193:196),], blank_row, combined_pairs_oat[c(197:200),])
-
-
-
-
-ggplot(combined_pairs_oat2, aes(x = oat_location, y = peaName, fill = yield_difference)) +
-  geom_tile() +
-  scale_fill_gradient(low = "red", high = "green") +  # Color gradient for mean yield
-  labs(
-    title = "Oat yield difference between intercrop and monoculture",
-    subtitle = "Green means that the oat yield in intercrop was higher than that genotype's pair in monoculture\nRed means that the oat genotype had higher yield in monoculture than the paired intercrop plot",
-    x = "Oat",
-    y = "Pea",
-    fill = "Yield Difference"
-  ) +  # Labels for plot
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 75, hjust = 1),
-        strip.placement = "outside")+
-  facet_grid(pea_type ~ ., scales = "free", space = "free", switch = "y")
-
-
-data <- structure(list(germplasmName = combined_pairs_oat$germplasmName, 
-                       peaName = combined_pairs_oat$peaName, 
-                       pea_type = combined_pairs_oat$pea_type, 
-                       yield_difference = combined_pairs_oat$yield_difference, 
-                       oat_location = combined_pairs_oat$oat_location), 
-                       class = c("spec_tbl_df", 
-"tbl_df", "tbl", "data.frame"), row.names = c(NA, -200L), 
-                        spec = structure(list(
-    cols = list(germplasmName = structure(list(), class = c("collector_character", 
-    "collector")), peaName = structure(list(), class = c("collector_character", 
-    "collector")), pea_type = structure(list(), class = c("collector_character", 
-    "collector")),yield_difference = structure(list(), class = c("collector_double", 
-    "collector")), oat_location = structure(list(), class = c("collector_character", "collector"))), default = structure(list(), class = c("collector_guess", 
-    "collector")), skip = 1L), class = "col_spec"))
-
-order <- unique(data$oat_location)
-
-data2 <- data %>%
-  mutate(
-      cat = case_when(
-      oat_location %in% c("A10_IL", "A10_NY") ~ "A10",
-      oat_location %in% c("A11_IL", "A11_NY") ~ "A11",
-      oat_location %in% c("A25_IL", "A25_NY") ~ "A25",
-      oat_location %in% c("BAKER_IL", "BAKER_NY") ~ "BAKER",
-      oat_location %in% c("BUCKSKIN_IL", "BUCKSKIN_NY") ~ "BUCKSKIN",
-      oat_location %in% c("COLT_IL", "COLT_NY") ~ "COLT",
-      oat_location %in% c("CORRAL_IL", "CORRAL_NY") ~ "CORRAL",
-      oat_location %in% c("DEON_IL", "DEON_NY") ~ "DEON",
-      oat_location %in% c("ESKER_IL", "ESKER_NY") ~ "ESKER",
-      oat_location %in% c("EXCEL_IL", "EXCEL_NY") ~ "EXCEL",
-      oat_location %in% c("GOLIATH_IL", "GOLIATH_NY") ~ "GOLIATH",
-      oat_location %in% c("GOPHER_IL", "GOPHER_NY") ~ "GOPHER",
-      oat_location %in% c("HAYDEN_IL", "HAYDEN_NY") ~ "HAYDEN",
-      oat_location %in% c("HORSEPOWER_IL", "HORSEPOWER_NY") ~ "HORSEPOWER",
-      oat_location %in% c("IL15-5752_IL", "IL15-5752_NY") ~ "IL15-5752",
-      oat_location %in% c("IL17-1253_IL", "IL17-1253_NY") ~ "IL17-1253",
-      oat_location %in% c("IL17-1704_IL", "IL17-1704_NY") ~ "IL17-1704",
-      oat_location %in% c("IL17-5238_IL", "IL17-5238_NY") ~ "IL17-5238",
-      oat_location %in% c("IL17-7334_IL", "IL17-7334_NY") ~ "IL17-7334",
-      oat_location %in% c("IL17-7339_IL", "IL17-7339_NY") ~ "IL17-7339",
-      oat_location %in% c("LEGGETT_IL", "LEGGETT_NY") ~ "LEGGETT",
-      oat_location %in% c("MN18015X_004_IL", "MN18015X_004_NY") ~ "MN18015X_004",
-      oat_location %in% c("MN18038X_008_IL", "MN18038X_008_NY") ~ "MN18038X_008",
-      oat_location %in% c("NATTY_IL", "NATTY_NY") ~ "NATTY",
-      oat_location %in% c("ND161488_IL", "ND161488_NY") ~ "ND161488",
-      oat_location %in% c("ND170307_IL", "ND170307_NY") ~ "ND170307",
-      oat_location %in% c("ND170376_IL", "ND170376_NY") ~ "ND170376",
-      oat_location %in% c("NEWBURG_IL", "NEWBURG_NY") ~ "NEWBURG",
-      oat_location %in% c("OGLE_IL", "OGLE_NY") ~ "OGLE",
-      oat_location %in% c("OT2130_IL", "OT2130_NY") ~ "OT2130",
-      oat_location %in% c("OT3120_IL", "OT3120_NY") ~ "OT3120",
-      oat_location %in% c("REINS_IL", "REINS_NY") ~ "REINS",
-      oat_location %in% c("RUSHMORE_IL", "RUSHMORE_NY") ~ "RUSHMORE",
-      oat_location %in% c("SABER_IL", "SABER_NY") ~ "SABER",
-      oat_location %in% c("SADDLE_IL", "SADDLE_NY") ~ "SADDLE",
-      oat_location %in% c("SD170935_IL", "SD170935_NY") ~ "SD170935",
-      oat_location %in% c("SD180580_IL", "SD180580_NY") ~ "SD180580",
-      oat_location %in% c("SD181237_IL", "SD181237_NY") ~ "SD181237",
-      oat_location %in% c("SD181245_IL", "SD181245_NY") ~ "SD181245",
-      oat_location %in% c("SD181377_IL", "SD181377_NY") ~ "SD181377",
-      oat_location %in% c("SD190850_IL", "SD190850_NY") ~ "SD190850",
-      oat_location %in% c("SD190992_IL", "SD190992_NY") ~ "SD190992",
-      oat_location %in% c("SD191467_IL", "SD191467_NY") ~ "SD191467", 
-      oat_location %in% c("SPURS_IL", "SPURS_NY") ~ "SPURS",
-      oat_location %in% c("WARRIOR_IL", "WARRIOR_NY") ~ "WARRIOR",
-      oat_location %in% c("WI_X10642-3_IL", "WI_X10642-3_NY") ~ "WI_X10642-3",
-      oat_location %in% c("WI_X10680-3_IL", "WI_X10680-3_NY") ~ "WI_X10680-3",
-      TRUE ~ "WI_X10710-7"
-    ),
-    oat_location = factor(oat_location, levels = order),
-    cat = factor(cat, levels = c("A10", "A11", "A25", "BAKER", "BUCKSKIN", "COLT", "CORRAL",       "DEON", "ESKER", "EXCEL", "GOLIATH", "GOPHER", "HAYDEN", "HORSEPOWER", "IL15-5752", "IL17-1253", "IL17-1704", "IL17-5238", "IL17-7334", "IL17-7339", "LEGGETT", "MN18015X_004", "MN18038X_008", "NATTY", "ND161488", "ND170307", "ND170376", "NEWBURG", "OGLE", "OT2130", "OT3120", "REINS", "RUSHMORE", "SABER", "SADDLE", "SD170935", "SD180580", "SD181237", "SD181245", "SD181377", "SD190850", "SD190992", "SD191467", "SPURS", "WARRIOR", "WI_X10642-3", "WI_X10680-3", "WI_X10710-7"))
-  )
-
-
-
-
-
-data <- combined_pairs_oat
-
-data <- data %>%
-  mutate(
-    category_color = case_when(
-      row_number() <= 1:4 ~ "bold",
-      row_number() <= 5:8 ~ "plain",
-      row_number() <= 9:12 ~ "bold",
-      row_number() <= 13:16 ~ "plain",
-      row_number() <= 17:20 ~ "bold",
-      row_number() <= 21:24 ~ "plain",
-      row_number() <= 25:28 ~ "bold",
-      row_number() <= 29:32 ~ "plain",
-      row_number() <= 33:36 ~ "bold",
-      row_number() <= 37:40 ~ "plain",
-      row_number() <= 41:44 ~ "bold",
-      row_number() <= 45:48 ~ "plain",
-      row_number() <= 49:52 ~ "bold",
-      row_number() <= 53:56 ~ "plain",
-      row_number() <= 57:60 ~ "bold",
-      row_number() <= 61:66 ~ "plain",
-      row_number() <= 67:70 ~ "bold",
-      row_number() <= 71:74 ~ "plain",
-      row_number() <= 75:78 ~ "bold",
-      row_number() <= 79:82 ~ "plain",
-      row_number() <= 83:86 ~ "bold",
-      row_number() <= 87:90 ~ "plain",
-      row_number() <= 91:96 ~ "bold",
-      row_number() <= 97:100 ~ "plain",
-      row_number() <= 101:104 ~ "bold",
-      row_number() <= 105:108 ~ "plain",
-      row_number() <= 109:112 ~ "bold",
-      row_number() <= 113:116 ~ "plain",
-      row_number() <= 117:122 ~ "bold",
-      row_number() <= 123:126 ~ "plain",
-      row_number() <= 127:130 ~ "bold",
-      row_number() <= 131:134 ~ "plain",
-      row_number() <= 135:138 ~ "bold",
-      row_number() <= 139:142 ~ "plain",
-      row_number() <= 143:146 ~ "bold",
-      row_number() <= 147:150 ~ "plain",
-      row_number() <= 151:154 ~ "bold",
-      row_number() <= 155:158 ~ "plain",
-      row_number() <= 159:164 ~ "bold",
-      row_number() <= 165:168 ~ "plain",
-      row_number() <= 169:172 ~ "bold",
-      row_number() <= 173:176 ~ "plain",
-      row_number() <= 177:180 ~ "bold",
-      row_number() <= 181:184 ~ "plain",
-      row_number() <= 185:188 ~ "bold",
-      row_number() <= 189:192 ~ "plain",
-      row_number() <= 193:196 ~ "bold",
-      row_number() <= 197:200 ~ "plain",
-    )
-  )
-
-# Create a named vector for x-axis label colors
-label_colors <- setNames(data$category_color, data$oat_location)
-
-
-ggplot(data, aes(x = oat_location, y = peaName, fill = yield_difference)) +
-  geom_tile() +
-  scale_fill_gradient(low = "red", high = "green") +  # Color gradient for mean yield
-  labs(
-    title = "Oat yield difference between intercrop and monoculture",
-    subtitle = "Green means that the oat yield in intercrop was higher than that genotype's pair in monoculture\nRed means that the oat genotype had higher yield in monoculture than the paired intercrop plot",
-    x = "Oat",
-    y = "Pea",
-    fill = "Yield Difference"
-  ) +  # Labels for plot
-  theme_minimal() +
-  theme(axis.text.x = element_text(face = label_colors[data$oat_location], angle = 75, hjust = 1), strip.placement = "outside")+
-  facet_grid(pea_type ~ ., scales = "free", space = "free", switch = "y")
-
-
-
-```

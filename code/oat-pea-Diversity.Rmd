@@ -26,16 +26,16 @@ library(tidyverse)
 library(readxl)
 library(dplyr)
 library(data.table)
-library(corrplot)
 library(ggplot2)     
 library(car)          
 library(broom)  
-install.packages("broom")
-install.packages("kableExtra")
 library(broom)
 library(kableExtra)
 library(corrplot)
 library(PerformanceAnalytics)
+library("sandwich")
+library("lmtest")
+library("lme4")
 ```
 
 ```{r,  include=FALSE}
@@ -150,6 +150,8 @@ diveristy_plotlvl %>%
 
 ```
 
+## Lodging
+
 
 ```{r,  echo=FALSE, warning=FALSE}
 
@@ -205,7 +207,6 @@ diveristy_plotlvl %>%
 
 
 
-## Lodging
 
 ```{r,  echo=FALSE}
 
@@ -271,12 +272,26 @@ data2 %>%
 
 
 ```{r,  echo=FALSE, warning=FALSE}
-data2 %>% 
+
+# there are some rows there pea biomass has a value and shouldn't becuase it's a monoculture plot. so i am adding those weights to weed biomass
+wide_biomass3 <- wide_biomass3 %>%
+  mutate(Biomass_weed = ifelse(pea_type == "monoculture", Biomass_weed + Biomass_pea, Biomass_weed),
+         Biomass_pea = ifelse(pea_type == "monoculture", NA, Biomass_pea))
+
+wide_biomass3 <- data2 %>% 
   select(plotNumber,`pea_type`,peaName,pea_grain_yield,oat_grain_yield, 
          Biomass_1_pea_g,Biomass_1_oat_g,Biomass_1_weed_g,
          Biomass_2_pea_g,Biomass_2_oat_g,Biomass_2_weed_g,
          Biomass_3_pea_g,Biomass_3_oat_g,Biomass_3_weed_g,
-         Biomass_4_pea_g,Biomass_4_oat_g,Biomass_4_weed_g) %>% 
+         Biomass_4_pea_g,Biomass_4_oat_g,Biomass_4_weed_g) %>%
+  mutate(Biomass_1_weed_g = ifelse(pea_type == "monoculture", Biomass_1_weed_g + Biomass_1_pea_g, Biomass_1_weed_g),
+         Biomass_1_pea_g = ifelse(pea_type == "monoculture", NA, Biomass_1_pea_g)) %>%
+  mutate(Biomass_2_weed_g = ifelse(pea_type == "monoculture", Biomass_2_weed_g + Biomass_2_pea_g, Biomass_2_weed_g),
+         Biomass_2_pea_g = ifelse(pea_type == "monoculture", NA, Biomass_2_pea_g)) %>%
+  mutate(Biomass_3_weed_g = ifelse(pea_type == "monoculture", Biomass_3_weed_g + Biomass_3_pea_g, Biomass_3_weed_g),
+         Biomass_3_pea_g = ifelse(pea_type == "monoculture", NA, Biomass_1_pea_g)) %>%
+  mutate(Biomass_4_weed_g = ifelse(pea_type == "monoculture", Biomass_4_weed_g + Biomass_4_pea_g, Biomass_4_weed_g),
+         Biomass_4_pea_g = ifelse(pea_type == "monoculture", NA, Biomass_4_pea_g)) %>%
   mutate(biomass_1 = (Biomass_1_pea_g + Biomass_1_oat_g + Biomass_1_weed_g)) %>% 
   mutate(biomass_2 = (Biomass_2_pea_g + Biomass_2_oat_g + Biomass_2_weed_g)) %>%
   mutate(biomass_3 = (Biomass_3_pea_g + Biomass_3_oat_g + Biomass_3_weed_g)) %>%
@@ -286,8 +301,9 @@ data2 %>%
   mutate(biomass = fct_relevel(biomass, 
                                 "Biomass_1_pea_g", "Biomass_2_pea_g", "Biomass_3_pea_g", "Biomass_4_pea_g",
                                 "Biomass_1_oat_g", "Biomass_2_oat_g", "Biomass_3_oat_g", "Biomass_4_oat_g",
-                                "Biomass_1_weed_g", "Biomass_2_weed_g", "Biomass_3_weed_g", "Biomass_4_weed_g")) %>%
-  
+                                "Biomass_1_weed_g", "Biomass_2_weed_g", "Biomass_3_weed_g", "Biomass_4_weed_g"))
+
+wide_biomass3 %>% 
   ggplot(aes(`pea_type`, `biomass_g`, fill = biomass)) +
   geom_boxplot() +
   xlab("Pea Type") +
@@ -303,6 +319,8 @@ data2 %>%
   theme(axis.text.x = element_text(face = "bold", color = "black", size = 16)) +
   theme(axis.text.y = element_text(face = "bold", color = "black", size = 16))
 
+
+write.csv(wide_biomass3, "data/2024_biomass_")
 ```
 
 ```{r include=FALSE, echo=FALSE}
@@ -360,6 +378,105 @@ biomass2$plot_number <- as.factor(as.character(biomass2$plot_number))
 
 biomass2 <- biomass2 %>%
   mutate(total_biomass = oat_biomass + coalesce(pea_biomass, 0) + weed_biomass)
+
+
+biomass3 <- data4[,c(1, 20, 79, 32:35, 39:42, 55:58, 72:81)]
+colnames(biomass3)[4] <- "Biomass_oat_1"
+colnames(biomass3)[5] <- "Biomass_oat_2"
+colnames(biomass3)[6] <- "Biomass_oat_3"
+colnames(biomass3)[7] <- "Biomass_oat_4"
+colnames(biomass3)[8] <- "Biomass_pea_1"
+colnames(biomass3)[9] <- "Biomass_pea_2"
+colnames(biomass3)[10] <- "Biomass_pea_3"
+colnames(biomass3)[11] <- "Biomass_pea_4"
+colnames(biomass3)[12] <- "Biomass_weed_1"
+colnames(biomass3)[13] <- "Biomass_weed_2"
+colnames(biomass3)[14] <- "Biomass_weed_3"
+colnames(biomass3)[15] <- "Biomass_weed_4"
+
+biomass3 <- biomass3 %>%
+  pivot_longer(
+    cols = starts_with("Biomass"),     # Select columns that start with "Biomass"
+    names_to = c(".value", "type", "time"),  # Specify new columns for type and time
+    names_sep = "_"                    # Split based on the underscore
+  )
+wide_biomass3 <- biomass3 %>%
+  pivot_wider(
+    names_from = type,
+    values_from = Biomass,
+    names_prefix = "Biomass_"
+  )  %>%
+  drop_na(Biomass_oat)  # Remove rows where Biomass_oat is NA
+
+# there are some rows there pea biomass has a value and shouldn't becuase it's a monoculture plot. so i am adding those weights to weed biomass
+wide_biomass3 <- wide_biomass3 %>%
+  mutate(Biomass_weed = ifelse(pea_type == "monoculture", Biomass_weed + Biomass_pea, Biomass_weed),
+         Biomass_pea = ifelse(pea_type == "monoculture", NA, Biomass_pea))
+
+wide_biomass3 <- wide_biomass3 %>%
+  mutate(total_biomass = Biomass_oat + coalesce(Biomass_pea, 0) + Biomass_weed)
+
+wide_biomass3$time <- as.factor(wide_biomass3$time)
+wide_biomass3$germplasmName <- as.factor(wide_biomass3$germplasmName)
+wide_biomass3$peaName <- as.factor(wide_biomass3$peaName)
+wide_biomass3$pea_type <- as.factor(wide_biomass3$pea_type)
+wide_biomass3$management <- as.factor(wide_biomass3$management)
+wide_biomass3$block_number <- as.factor(as.character(wide_biomass3$block_number))
+wide_biomass3$plot_number <- as.factor(as.character(wide_biomass3$plot_number))
+wide_biomass3$Biomass_oat <- as.numeric(as.character(wide_biomass3$Biomass_oat))
+wide_biomass3$Biomass_pea <- as.numeric(as.character(wide_biomass3$Biomass_pea))
+wide_biomass3$Biomass_weed <- as.numeric(as.character(wide_biomass3$Biomass_weed))
+wide_biomass3$total_biomass <- as.numeric(as.character(wide_biomass3$total_biomass))
+
+hist(wide_biomass3$Biomass_oat)
+hist(wide_biomass3$Biomass_pea)
+hist(wide_biomass3$Biomass_weed)
+
+# oat is bimodal (significant amount with realy low values)
+
+# Density plot to examine distribution of Biomass_oat across different grouping variables
+ggplot(wide_biomass3, aes(x = Biomass_oat, fill = as.factor(time))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density Plot of Biomass_oat by Time", x = "Biomass_oat", fill = "Time") +
+  theme_minimal()
+
+ggplot(wide_biomass3, aes(x = Biomass_oat, fill = as.factor(block_number))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density Plot of Biomass_oat by Block Number", x = "Biomass_oat", fill = "Block Number") +
+  theme_minimal()
+
+# Boxplot to see distribution across factors
+ggplot(wide_biomass3, aes(x = as.factor(time), y = Biomass_oat, fill = as.factor(time))) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Biomass_oat by Time", x = "Time", y = "Biomass_oat") +
+  theme_minimal()
+
+ggplot(wide_biomass3, aes(x = as.factor(block_number), y = Biomass_oat, fill = as.factor(block_number))) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Biomass_oat by Block Number", x = "Block Number", y = "Biomass_oat") +
+  theme_minimal()
+
+# Apply k-means clustering on Biomass_oat, specifying two clusters
+set.seed(123)  # For reproducibility
+kmeans_result <- kmeans(wide_biomass3$Biomass_oat, centers = 2)
+
+# Add cluster information to the data
+wide_biomass3 <- wide_biomass3 %>%
+  mutate(cluster = as.factor(kmeans_result$cluster))
+
+# Visualize clusters with a density plot
+ggplot(wide_biomass3, aes(x = Biomass_oat, fill = cluster)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density Plot of Biomass_oat by K-means Clusters", x = "Biomass_oat", fill = "Cluster") +
+  theme_minimal()
+
+# Check the number of observations in each cluster
+table(wide_biomass3$cluster)
+
+# it is likely that a specific condition or effect (in this case probably early season) led to different biomass patterns; the time point 1 has a different pattern than the other timepoints since it is the earlier phenology stage of the plants
+
+biomass4 <- wide_biomass3 %>% filter(time != 1) # remove time point 1
+
 ```
 
 ```{r}
@@ -649,6 +766,8 @@ significant_Pyield_summary %>%
 
 ```
 
+
+
 ```{r include=FALSE, echo=FALSE, eval=FALSE}
 # Checking Model Assumptions
 library(lmtest)
@@ -754,6 +873,21 @@ significant_PbioLm_summary %>%
         col.names = c("Term", "Estimate", "Std. Error", "t value", "P value")) %>%
   kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "condensed"))
 ```
+
+Biomass Mixed Effect Models
+```{r}
+# log pea biomass , sqrt weed biomass, log pea grain yield, sqrt lodging
+
+#oat biomass
+
+model2 <- lm(oat_biomass ~ germplasmName + peaName + pea_biomass + weed_biomass + block_number, data = biomass2)
+
+
+mix.lmer <- lmer(oat_biomass ~ log(pea_biomass+0.1) + sqrt(weed_biomass) + block_number + germplasmName + (1 | peaName), data=biomass2)
+summary(mix.lmer)
+anova(mix.lmer)
+```
+
 
 ```{r include=FALSE, eval=FALSE}
 write.csv(data2, "data/2024_NY_SpringOatPea_cleaned.csv")

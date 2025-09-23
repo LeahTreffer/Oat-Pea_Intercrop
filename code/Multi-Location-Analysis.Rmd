@@ -25,10 +25,13 @@ library(tidyverse)
 library(readxl)
 library(kableExtra)
 library(ggrepel)
+library(tidyverse)
+require(BGLR)
+library(kableExtra)
 ```
 
 
-## Yield by Locations Summary
+## Load in data files
 ```{r,  include=FALSE, warning=FALSE}
 meta2023 <- read_csv("data/2023_plot_meta.csv") %>%
   select(peaName, pea_type) %>%
@@ -67,7 +70,7 @@ NewYork23 <- read_excel("data/2023_multi_location_data.xlsx",
          Biomass_3_oat_g, Biomass_4_oat_g, oat_yield, Lodging, Biomass_1_pea_g, 
          Biomass_2_pea_g, Biomass_3_pea_g, Biomass_4_pea_g, pea_yield)
 #NY 2024
-NewYork24 <- read.csv("data/2024_NY_SpringOatPea_cleaned.csv") %>%
+NewYork24 <- read.csv("data/2024_NY_SpringOatPea_cleaned2.csv") %>%
   mutate(studyLoc = "NY") %>%
   mutate(oat_yield = oat_grain_yield) %>%
   mutate(pea_yield = pea_grain_yield) %>%
@@ -155,7 +158,7 @@ SDSU24 <- SDSU24 %>%
 SouthDakota <- rbind(SDSU23, SDSU24)
 ```
 
-
+## Multi-Location data table
 ```{r,  include=FALSE}
 # create the new data frame with the specified columns and only the rows where the observationLevel column is "plot"
 NewYork2 <- NewYork[NewYork$observationLevel == "plot", 
@@ -180,6 +183,7 @@ mulit_location_data %>%
  scroll_box(width = "900px", height = "300px")
 ```
 
+## Grain Yield Box Plot
 ```{r,  echo=FALSE, warning=FALSE}
 
 # can try grain yield and log grain yeild by changing following lines:
@@ -250,6 +254,7 @@ mulit_location_data %>%
         panel.spacing = unit(1.5, "lines")) # Increase gap between plots
 ```
 
+## chage data type (character,factor,numeric)
 ```{r include=FALSE}
 mulit_location_data$studyYear <- as.factor(mulit_location_data$studyYear)
 mulit_location_data$studyLoc <- as.factor(mulit_location_data$studyLoc)
@@ -262,58 +267,14 @@ mulit_location_data <- mulit_location_data%>%
 
 ```
 
-Linear Models (needs work)
-```{r eval=FALSE, include=FALSE}
-# Note to future Leah: for mixed linear models: I want to have terms for year, location, and block within location ; this is in addition to having species genotypes and weeds 
+```{r}
+# save multi-location data file
+#write.csv(mulit_location_data, "/Users/leahtreffer/GitHub/OatPea_intercrop/data/2023_2024_multi_location.csv", row.names=FALSE)
 
-model_oatgrain <- aov(oat_yield ~ germplasmName * peaName + pea_yield + studyYear + blockNumber + studyLoc, mulit_location_data)
-summary(model_oatgrain)
-
-options(repos = c(CRAN = "https://cran.rstudio.com/"))
-
-library(lme4)
-
-# block within location as a random effect
-
-model_oatgrain <- lmer(oat_yield ~ germplasmName + peaName + pea_yield + studyYear + (1|studyLoc/blockNumber), data = mulit_location_data)
-anova(model_oatgrain)
-summary(model_oatgrain)
-
-install.packages("lmerTest")
-library(lmerTest)
-model_oatgrain <- lmer(oat_yield ~ germplasmName * peaName + pea_yield + studyYear + (1|studyLoc/blockNumber), data = mulit_location_data)
-anova(model_oatgrain)
-
-# 
-model_oat <- lmer(oat_yield ~ germplasmName * peaName * pea_yield * studyLoc * studyYear + (1|studyLoc:blockNumber), data = mulit_location_data)
-model_pea <- lmer(pea_yield ~ peaName * germplasmName * oat_yield * studyLoc * studyYear + (1|studyLoc:blockNumber), data = mulit_location_data)
-
-# For model summaries:
-summary(model_oat)
-summary(model_pea)
-anova(model_oat)
-anova(model_pea)
-
-
-# fixed-effect model matrix is rank deficient so checking multicollinearity
-library(car)
-vif_model <- vif(model_oat)
-print(vif_model)
-
-
+#write.csv(mulit_location_data, "/Users/leahtreffer/GitHub/Peter_2024_spring/Peter_2024_spring/data/2023_2024_multi_location.csv", row.names=FALSE)
 ```
-
-
-
 
 ## BGLR analysis
-
-```{r,  echo=TRUE}
-library(tidyverse)
-require(BGLR)
-library(kableExtra)
-```
-
 
 ```{r,  echo=FALSE}
 ### set mulit_yield to match JLJ grainWgt
