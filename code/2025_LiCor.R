@@ -1,5 +1,28 @@
-library(readxl)
-library(ggplot2)
+# Data from 2025 NY oat-pea intercrop trials
+# Field : Helfner
+# 20 plots; these were the first 10 'border' plots on each side of the 400 plot B4I experiment
+# 5 oat accessions
+# 5 pea accessions
+# intercrops and monocrops of oat and pea
+# each accession exists has a monoculture and as one intercrop with an accession of the other species
+# each plot divided into 3 subplots; subplot 1 always north side and subplot 3 always the south side
+
+# PAR measurements taken using a LiCor LI-188B
+# Integration = 10
+# Range = 100x
+# Quantum Sensor Unit: µmol PAR m-2 s-1
+# sensor slowly moved horizontally through canopy within each subplot
+# Timepoint 1 : June 2-3 2025
+# Timepoint 2 : June 24-25 2025
+# Timepoint 3 : July 14-15 2025
+# measurements taken by Leah and recorded by hand (T1), and in Fieldbook (T2,T3) by Mirza
+# PAR measurement taken with sensor on the ground and above canopy
+# in T2 and T3 another PAR measurement was taken _ cm from the ground
+
+# Raw data : https://cornell.app.box.com/folder/342321167330
+# data exists elsewhere for plant height, biomass, stand count (taken in Fieldbook, might be uploaded eventually to T3)
+
+################################################################################
 
 # Photosynthetically Active Radiation (PAR) data from a Li-Cor Quantum Sensor
 # Above canopy PAR represents the total light available above the crop canopy (i.e., incident light).
@@ -11,10 +34,10 @@ library(ggplot2)
 # Light Interception Efficiency (LIE): measure of how efficiently the crops intercept light compared to a baseline, such as monocrop systems or theoretical maximum light interception.
 # LIE = mean_intercrop_LI / mean_monocrop_LI
 
-# LiCore measurements taken using a LI-188B
-# Integration = 10
-# Range = 100x
-# Quantum Sensor Unit: µmol PAR m-2 s-1
+################################################################################
+
+library(readxl)
+library(ggplot2)
 
 LiCor <- read_excel("data/T1_T2_T3_light_interception.xlsx", sheet = 'Long')
 
@@ -43,13 +66,13 @@ LIE_o <- mean_intercrop_LI / mean_mono_oat_LI
 # intercrops intercept more light on average than monocultures
 ## intercrops intercept more light than pea monocultures, but less light than oat monocultures
 
+hist(LiCor$Light_ground)
+hist(LiCor$Light_mid)
+hist(LiCor$Light_top)
+hist(LiCor$total_light_interception)
+hist(LiCor$top_light_interception)
+hist(LiCor$bottom_light_interception)
 
-ggplot(LiCor, aes(x = Timepoint, y = total_light_interception, color = Crop)) +
-  geom_line() +
-  labs(title = "Light Interception Over Time",
-       x = "Timepoint",
-       y = "Light Interception (µmol PAR m-2 s-1)") +
-  theme_minimal()
 
 
 ################################## Old Stuff ##################################
