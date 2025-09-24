@@ -22,7 +22,14 @@
 # in T2 and T3 another PAR measurement was taken _ cm from the ground
 
 # Raw data : https://cornell.app.box.com/folder/342321167330
-# data exists elsewhere for plant height, biomass, stand count (https://oat.triticeaetoolbox.org/breeders/trial/6830)
+# data exists elsewhere for plant height, biomass, stand count (https://oat.triticeaetoolbox.org/breeders/trial/6830; "data/B4I_2025_PM3D_NY_phenotypes.csv")
+## Above ground dry biomass - g|timepoint X|COMP:0000110
+## Pea Aboveground Dry Biomass - g|timepoint X|COMP:0000118
+## Weed above ground dry biomass - g|timepoint X|COMP:0000126
+## Plant establishment - plants/ft2|CO_350:0005124
+## Pea Plant Establishment - plants/ft2|CO_xxx:0003011
+## Plant height - cm|timepoint X|COMP:0000114
+## Pea Plant Height - cm|timepoint X|COMP:0000122
 # Since seeding rates are different between interfrop and monoculture, we will want to have the standcounts (emergence) data
 
 ################################################################################
@@ -31,7 +38,7 @@
 # Above canopy PAR represents the total light available above the crop canopy (i.e., incident light).
 # Below canopy PAR indicates the amount of light that passes through the canopy and is available for the plants below it.
 
-# Light Interception: percentage of light that is absorbed by the canopy compared to the incident light
+# Light Interception (LI): percentage of light that is absorbed by the canopy compared to the incident light
 # LI = ((PAR_above - PAR_below) / PAR_above) * 100
 
 # Light Interception Efficiency (LIE): measure of how efficiently the crops intercept light compared to a baseline, such as monocrop systems or theoretical maximum light interception.
@@ -41,19 +48,16 @@
 
 library(readxl)
 library(ggplot2)
+library(dplyr)
+library(tidyr)
 
 LiCor <- read_excel("data/T1_T2_T3_light_interception.xlsx", sheet = 'Long')
-otherdata <- read.csv("data/B4I_2025_PM3D_NY_phenotypes.csv")
-# messy so creating merged file manually
-all_data <-
 
 LiCor$plot_number <- as.factor(LiCor$plot_number)
 LiCor$subplot_number <- as.factor(LiCor$subplot_number)
 LiCor$Timepoint <- as.factor(LiCor$Timepoint)
-LiCor$Light_ground <- as.numeric(LiCor$Light_ground)
-LiCor$Light_mid <- as.numeric(LiCor$Light_mid)
-LiCor$Light_top <- as.numeric(LiCor$Light_top)
 
+# Light Interception (LI)
 LiCor$total_light_interception <- ((LiCor$Light_top - LiCor$Light_ground) / LiCor$Light_top) * 100
 LiCor$top_light_interception <- ((LiCor$Light_top - LiCor$Light_mid) / LiCor$Light_top) * 100
 LiCor$bottom_light_interception <- ((LiCor$Light_mid - LiCor$Light_ground) / LiCor$Light_mid) * 100
@@ -62,6 +66,8 @@ intercrop_data <- LiCor[LiCor$System == "intercrop", ]
 monocrop_data <- LiCor[LiCor$System == "monoculture", ]
 mono_pea <- LiCor[LiCor$Crop == "pea", ]
 mono_oat <- LiCor[LiCor$Crop == "oat", ]
+
+# Light Interception Efficiency (LIE)
 mean_intercrop_LI <- mean(intercrop_data$total_light_interception, na.rm = TRUE)
 mean_monocrop_LI <- mean(monocrop_data$total_light_interception, na.rm = TRUE)
 mean_mono_pea_LI <- mean(mono_pea$total_light_interception, na.rm = TRUE)
@@ -72,13 +78,74 @@ LIE_o <- mean_intercrop_LI / mean_mono_oat_LI
 # intercrops intercept more light on average than monocultures
 ## intercrops intercept more light than pea monocultures, but less light than oat monocultures
 
+# This does not account for differences in seeding rate between monocultures and intercrops, so below will adjust based on stand counts
+## In excel, I sorted oats by oat name>system(inter/mono)>plot so that I had a list with oat accessions grouped together with the two intercrop plots followed by its monoculture version
+## I then made a new column (Oat_prcnt) and set the value for the monoculture to 1. This represents that the monoculture was planted at 100% seeding rate. Whatever establishment exists for a 100% seeding rate is concidered 100% stand count
+## For each accession's subplots I took the subplot's stand count and divided it by the same subplot in the monoculture version of the accession. This gives observed seeding rate or stand count as a percentage of monoculture
+## The same process was done for peas
+## Prct from each subplot is X% stand count
+## average the two intercrop X% stand counts
+## change monoculture LIE value to X% of full mono value
+
+# ChatGPT code to finish adjusting light values based on stand count
+# Oat monoculture adjustment
+# Step 1: Get inter means for oat_prcnt by accession × subplot
+oat_inter_means <- LiCor %>%
+  filter(System == "intercrop", Timepoint == 1) %>%
+  group_by(oat_accession_name, subplot_number) %>%
+  summarise(mean_oat_prcnt = mean(Oat_Prcnt, na.rm = TRUE), .groups = "drop")
+# Step 2: Adjust monoculture interception
+oat_mono_adj <- LiCor %>%
+  filter(System == "monoculture") %>%
+  left_join(oat_inter_means, by = c("oat_accession_name", "subplot_number")) %>%
+  mutate(
+    adj_light_interception = total_light_interception * mean_oat_prcnt,
+    adj_top_light_interception = top_light_interception * mean_oat_prcnt,
+    adj_bottom_light_interception = bottom_light_interception * mean_oat_prcnt
+  )
+# Pea monoculture Adjustment
+# Step 1: Get inter means for pea_prcnt by accession × subplot
+pea_inter_means <- LiCor %>%
+  filter(System == "intercrop", Timepoint == 1) %>%
+  group_by(pea_accession_name, subplot_number) %>%
+  summarise(mean_pea_prcnt = mean(Pea_Prcnt, na.rm = TRUE), .groups = "drop")
+# Step 2: Adjust monoculture interception
+pea_mono_adj <- LiCor %>%
+  filter(System == "monoculture") %>%
+  left_join(pea_inter_means, by = c("pea_accession_name", "subplot_number")) %>%
+  mutate(
+    adj_light_interception = total_light_interception * mean_pea_prcnt,
+    adj_top_light_interception = top_light_interception * mean_pea_prcnt,
+    adj_bottom_light_interception = bottom_light_interception * mean_pea_prcnt
+  )
+
+
+# Add Adj oat mono values to data table
+LiCor <- LiCor %>%
+  left_join(
+    oat_mono_adj %>%
+      select(oat_accession_name, plot_number, subplot_number, Timepoint, adj_light_interception),
+    by = c("oat_accession_name", "plot_number", "subplot_number", "Timepoint")
+  )
+# Add Adj pea mono values to data table
+LiCor <- LiCor %>%
+  left_join(
+    pea_mono_adj %>%
+      select(pea_accession_name, plot_number, subplot_number, Timepoint, adj_light_interception),
+    by = c("pea_accession_name", "plot_number", "subplot_number", "Timepoint")
+  )
+#combine adjustment columns into one column
+LiCor$adj_light_interception <- apply(LiCor[, c("adj_light_interception.x", "adj_light_interception.y")], 1, function(x)
+  paste(na.omit(x), collapse = " ")
+)
+
+
 hist(LiCor$Light_ground)
 hist(LiCor$Light_mid)
 hist(LiCor$Light_top)
 hist(LiCor$total_light_interception)
 hist(LiCor$top_light_interception)
 hist(LiCor$bottom_light_interception)
-
 
 
 ################################## Old Stuff ##################################
