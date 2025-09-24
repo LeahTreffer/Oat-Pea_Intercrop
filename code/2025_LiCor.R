@@ -22,7 +22,7 @@
 # in T2 and T3 another PAR measurement was taken _ cm from the ground
 
 # Raw data : https://cornell.app.box.com/folder/342321167330
-# data exists elsewhere for plant height, biomass, stand count (taken in Fieldbook, might be uploaded eventually to T3)
+# data exists elsewhere for plant height, biomass, stand count (https://oat.triticeaetoolbox.org/breeders/trial/6830)
 # Since seeding rates are different between interfrop and monoculture, we will want to have the standcounts (emergence) data
 
 ################################################################################
@@ -43,7 +43,9 @@ library(readxl)
 library(ggplot2)
 
 LiCor <- read_excel("data/T1_T2_T3_light_interception.xlsx", sheet = 'Long')
-standcount <-
+otherdata <- read.csv("data/B4I_2025_PM3D_NY_phenotypes.csv")
+# messy so creating merged file manually
+all_data <-
 
 LiCor$plot_number <- as.factor(LiCor$plot_number)
 LiCor$subplot_number <- as.factor(LiCor$subplot_number)
