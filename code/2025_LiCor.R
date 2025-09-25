@@ -78,6 +78,8 @@ LIE_o <- mean_intercrop_LI / mean_mono_oat_LI
 # intercrops intercept more light on average than monocultures
 ## intercrops intercept more light than pea monocultures, but less light than oat monocultures
 
+rm(mono_oat,mono_pea,monocrop_data,mean_monocrop_LI,mean_mono_pea_LI,mean_mono_oat_LI,LIE,LIE_o,LIE_p)
+
 # This does not account for differences in seeding rate between monocultures and intercrops, so below will adjust based on stand counts
 ## In excel, I sorted oats by oat name>system(inter/mono)>plot so that I had a list with oat accessions grouped together with the two intercrop plots followed by its monoculture version
 ## I then made a new column (Oat_prcnt) and set the value for the monoculture to 1. This represents that the monoculture was planted at 100% seeding rate. Whatever establishment exists for a 100% seeding rate is concidered 100% stand count
@@ -138,6 +140,29 @@ LiCor <- LiCor %>%
 LiCor$adj_light_interception <- apply(LiCor[, c("adj_light_interception.x", "adj_light_interception.y")], 1, function(x)
   paste(na.omit(x), collapse = " ")
 )
+LiCor$adj_light_interception <- as.numeric(LiCor$adj_light_interception)
+
+mono_pea <- LiCor[LiCor$Crop == "pea", ]
+mono_oat <- LiCor[LiCor$Crop == "oat", ]
+mean_mono_pea_LI <- mean(mono_pea$adj_light_interception, na.rm = TRUE)
+mean_mono_oat_LI <- mean(mono_oat$adj_light_interception, na.rm = TRUE)
+mean_mono_LI <- mean(c(mono_pea$adj_light_interception,mono_oat$adj_light_interception), na.rm=TRUE)
+LIE <- mean_intercrop_LI / mean_mono_LI
+LIE_p <- mean_intercrop_LI / mean_mono_pea_LI
+LIE_o <- mean_intercrop_LI / mean_mono_oat_LI
+# intercrop plots were more efficient at light interception than the monocultures
+# intercrops intercepted twice (2.18) as much light as the same stand count of monoculture
+
+# Should intercrop be divided in half to account for the monoculture just being one species?
+mean_intercrop_LI2 <- mean((intercrop_data$total_light_interception/2), na.rm = TRUE)
+LIE2 <- mean_intercrop_LI2 / mean_mono_LI
+LIE_o2 <- mean_intercrop_LI2 / mean_mono_oat_LI
+LIE_p2 <- mean_intercrop_LI2 / mean_mono_pea_LI
+# intercrop plots were more efficent at light inerception than the monocultures
+# intercrops intercepted slightly more light than the monocultures
+
+
+
 
 
 hist(LiCor$Light_ground)
