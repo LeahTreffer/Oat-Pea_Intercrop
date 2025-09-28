@@ -50,14 +50,21 @@ library(readxl)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
+library(corrplot)
+library(lme4)
+library(multcomp)
+library(emmeans)
 
 LiCor <- read_excel("data/T1_T2_T3_light_interception.xlsx", sheet = 'Long')
 
 LiCor$plot_number <- as.factor(LiCor$plot_number)
 LiCor$subplot_number <- as.factor(LiCor$subplot_number)
 LiCor$Timepoint <- as.factor(LiCor$Timepoint)
+LiCor$Crop <- as.factor(LiCor$Crop)
+LiCor$oat_accession_name <- as.factor(LiCor$oat_accession_name)
+LiCor$pea_accession_name <- as.factor(LiCor$pea_accession_name)
 
-# Light Interception (LI)
+### Light Interception (LI)
 LiCor$total_light_interception <- ((LiCor$Light_top - LiCor$Light_ground) / LiCor$Light_top) * 100
 LiCor$top_light_interception <- ((LiCor$Light_top - LiCor$Light_mid) / LiCor$Light_top) * 100
 LiCor$bottom_light_interception <- ((LiCor$Light_mid - LiCor$Light_ground) / LiCor$Light_mid) * 100
@@ -67,7 +74,7 @@ monocrop_data <- LiCor[LiCor$System == "monoculture", ]
 mono_pea <- LiCor[LiCor$Crop == "pea", ]
 mono_oat <- LiCor[LiCor$Crop == "oat", ]
 
-# Light Interception Efficiency (LIE)
+### Light Interception Efficiency (LIE)
 mean_intercrop_LI <- mean(intercrop_data$total_light_interception, na.rm = TRUE)
 mean_monocrop_LI <- mean(monocrop_data$total_light_interception, na.rm = TRUE)
 mean_mono_pea_LI <- mean(mono_pea$total_light_interception, na.rm = TRUE)
@@ -140,6 +147,7 @@ LiCor <- LiCor %>%
 LiCor$adj_light_interception <- apply(LiCor[, c("adj_light_interception.x", "adj_light_interception.y")], 1, function(x)
   paste(na.omit(x), collapse = " ")
 )
+
 LiCor$adj_light_interception <- as.numeric(LiCor$adj_light_interception)
 
 mono_pea <- LiCor[LiCor$Crop == "pea", ]
@@ -161,9 +169,7 @@ LIE_p2 <- mean_intercrop_LI2 / mean_mono_pea_LI
 # intercrop plots were more efficent at light inerception than the monocultures
 # intercrops intercepted slightly more light than the monocultures
 
-
-
-
+### Histograms
 
 hist(LiCor$Light_ground)
 hist(LiCor$Light_mid)
@@ -172,6 +178,64 @@ hist(LiCor$total_light_interception)
 hist(LiCor$top_light_interception)
 hist(LiCor$bottom_light_interception)
 
+### Correlations
+
+# correlation matrix with pairwise complete obs
+corr_matrix <- cor(LiCor[, c("Oat_biomass", "Pea_Biomass", "Weed_Biomass",
+                             "Oat_Height", "Pea_Height", "total_light_interception",
+                             "top_light_interception", "bottom_light_interception",
+                             "adj_light_interception")],
+  use = "pairwise.complete.obs"
+)
+
+corrplot(corr_matrix, method = "number", type = 'upper')
+
+## intercrop plots only
+
+# correlation matrix with pairwise complete obs
+corr_matrix_int <- LiCor %>%
+  filter(System == "intercrop") %>%
+  select(
+    Oat_biomass, Pea_Biomass, Weed_Biomass,
+    Oat_Height, Pea_Height,
+    total_light_interception, top_light_interception,
+    bottom_light_interception
+  ) %>%
+  cor(use = "pairwise.complete.obs")
+
+corrplot(corr_matrix_int, method = "number", type = 'upper')
+
+### LM
+model <- lm(total_light_interception~ plot_number + subplot_number + Timepoint + Crop, data=LiCor)
+anova(model)
+summary(model)
+
+model2 <- lm(total_light_interception~ plot_number + subplot_number + Timepoint + Crop + oat_accession_name*Timepoint + pea_accession_name*Timepoint, data=LiCor)
+anova(model2)
+summary(model2)
+
+model3 <- lm(total_light_interception~ plot_number + subplot_number + Timepoint + Crop + plot_number*Timepoint, data=LiCor)
+anova(model3)
+summary(model3)
+
+AIC(model, model2, model3)
+
+# Pairwise comparisons for Plot
+emmeans(model, pairwise ~ plot_number)
+# Pairwise comparisons for Subplot
+emmeans(model, pairwise ~ subplot_number)
+
+model_aov <- aov(total_light_interception~ plot_number + subplot_number + Timepoint + Crop, data=LiCor)
+
+# differences in light interception between plots
+tukey <- glht(model_aov, linfct = mcp(plot_number = "Tukey"))
+summary(tukey)
+plot(tukey)
+
+# differences in light interception between subplots
+tukey <- glht(model_aov, linfct = mcp(subplot_number = "Tukey"))
+summary(tukey)
+plot(tukey)
 
 ################################## Old Stuff ##################################
 
