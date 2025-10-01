@@ -85,7 +85,7 @@ LIE_o <- mean_intercrop_LI / mean_mono_oat_LI
 # intercrops intercept more light on average than monocultures
 ## intercrops intercept more light than pea monocultures, but less light than oat monocultures
 
-rm(mono_oat,mono_pea,monocrop_data,mean_monocrop_LI,mean_mono_pea_LI,mean_mono_oat_LI,LIE,LIE_o,LIE_p)
+rm(mono_oat,mono_pea,monocrop_data,mean_monocrop_LI,mean_mono_pea_LI,mean_mono_oat_LI)
 
 # This does not account for differences in seeding rate between monocultures and intercrops, so below will adjust based on stand counts
 ## In excel, I sorted oats by oat name>system(inter/mono)>plot so that I had a list with oat accessions grouped together with the two intercrop plots followed by its monoculture version
@@ -133,14 +133,14 @@ pea_mono_adj <- LiCor %>%
 LiCor <- LiCor %>%
   left_join(
     oat_mono_adj %>%
-      select(oat_accession_name, plot_number, subplot_number, Timepoint, adj_light_interception),
+      dplyr::select(oat_accession_name, plot_number, subplot_number, Timepoint, adj_light_interception),
     by = c("oat_accession_name", "plot_number", "subplot_number", "Timepoint")
   )
 # Add Adj pea mono values to data table
 LiCor <- LiCor %>%
   left_join(
     pea_mono_adj %>%
-      select(pea_accession_name, plot_number, subplot_number, Timepoint, adj_light_interception),
+      dplyr::select(pea_accession_name, plot_number, subplot_number, Timepoint, adj_light_interception),
     by = c("pea_accession_name", "plot_number", "subplot_number", "Timepoint")
   )
 #combine adjustment columns into one column
@@ -155,17 +155,17 @@ mono_oat <- LiCor[LiCor$Crop == "oat", ]
 mean_mono_pea_LI <- mean(mono_pea$adj_light_interception, na.rm = TRUE)
 mean_mono_oat_LI <- mean(mono_oat$adj_light_interception, na.rm = TRUE)
 mean_mono_LI <- mean(c(mono_pea$adj_light_interception,mono_oat$adj_light_interception), na.rm=TRUE)
-LIE <- mean_intercrop_LI / mean_mono_LI
-LIE_p <- mean_intercrop_LI / mean_mono_pea_LI
-LIE_o <- mean_intercrop_LI / mean_mono_oat_LI
+LIE_adj <- mean_intercrop_LI / mean_mono_LI
+LIE_adj_p <- mean_intercrop_LI / mean_mono_pea_LI
+LIE_adj_o <- mean_intercrop_LI / mean_mono_oat_LI
 # intercrop plots were more efficient at light interception than the monocultures
 # intercrops intercepted twice (2.18) as much light as the same stand count of monoculture
 
 # Should intercrop be divided in half to account for the monoculture just being one species?
 mean_intercrop_LI2 <- mean((intercrop_data$total_light_interception/2), na.rm = TRUE)
-LIE2 <- mean_intercrop_LI2 / mean_mono_LI
-LIE_o2 <- mean_intercrop_LI2 / mean_mono_oat_LI
-LIE_p2 <- mean_intercrop_LI2 / mean_mono_pea_LI
+LIE_adj2 <- mean_intercrop_LI2 / mean_mono_LI
+LIE_adj_o2 <- mean_intercrop_LI2 / mean_mono_oat_LI
+LIE_adj_p2 <- mean_intercrop_LI2 / mean_mono_pea_LI
 # intercrop plots were more efficent at light inerception than the monocultures
 # intercrops intercepted slightly more light than the monocultures
 
@@ -195,7 +195,7 @@ corrplot(corr_matrix, method = "number", type = 'upper')
 # correlation matrix with pairwise complete obs
 corr_matrix_int <- LiCor %>%
   filter(System == "intercrop") %>%
-  select(
+  dplyr::select(
     Oat_biomass, Pea_Biomass, Weed_Biomass,
     Oat_Height, Pea_Height,
     total_light_interception, top_light_interception,
@@ -205,7 +205,7 @@ corr_matrix_int <- LiCor %>%
 
 corrplot(corr_matrix_int, method = "number", type = 'upper')
 
-### LM
+### LM Light Interception
 model <- lm(total_light_interception~ plot_number + subplot_number + Timepoint + Crop, data=LiCor)
 anova(model)
 summary(model)
@@ -236,6 +236,25 @@ plot(tukey)
 tukey <- glht(model_aov, linfct = mcp(subplot_number = "Tukey"))
 summary(tukey)
 plot(tukey)
+
+###  LM
+model <- lm(Oat_biomass~ plot_number + subplot_number + Timepoint + Crop, data=LiCor)
+anova(model)
+summary(model)
+
+model2 <- lm(Oat_biomass~ plot_number + subplot_number + Timepoint + Crop + oat_accession_name*Timepoint + pea_accession_name*Timepoint, data=LiCor)
+anova(model2)
+summary(model2)
+
+model3 <- lm(Oat_biomass~ plot_number + subplot_number + Timepoint + Crop + plot_number*Timepoint, data=LiCor)
+anova(model3)
+summary(model3)
+
+model4 <- lm(Oat_biomass~ plot_number + subplot_number + Timepoint + Crop + total_light_interception, data=LiCor)
+anova(model4)
+summary(model4)
+
+AIC(model, model2, model4)
 
 ################################## Old Stuff ##################################
 
