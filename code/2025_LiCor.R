@@ -237,7 +237,7 @@ tukey <- glht(model_aov, linfct = mcp(subplot_number = "Tukey"))
 summary(tukey)
 plot(tukey)
 
-###  LM
+### LM Oat Biomass
 model <- lm(Oat_biomass~ plot_number + subplot_number + Timepoint + Crop, data=LiCor)
 anova(model)
 summary(model)
