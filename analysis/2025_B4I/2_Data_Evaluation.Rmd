@@ -5,9 +5,6 @@ date: "2025-10-14"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, root.dir='~/Documents/Github/Oat-Pea_Intercrop')
-```
 
 ```{r}
 library(readr)
@@ -26,13 +23,20 @@ library(corrplot)
 library(emmeans)
 library(broom.mixed)
 library(knitr)
+library(here)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = here::here())
 ```
 
 ```{r}
 data <- read.csv('data/Intermediate/B4I_2025_multi_location_data.csv')
+plot_data <- read.csv('data/Intermediate/B4I_2025_multi_location_plotdata.csv')
+subplot_data <- read.csv('data/Intermediate/B4I_2025_multi_location_subplotdata.csv')
 ```
 
-## Yield Histogram for all locations
+## Box Plot and Histogram for all locations
 ```{r}
 custom_colors <- c(
   "IL" = "#35B7AD",  
@@ -41,6 +45,165 @@ custom_colors <- c(
   "AL" = "#AE6C13",  
   "NY" = "#7D0112"
 )
+```
+
+Establishment
+```{r,  echo=FALSE, warning=FALSE}
+
+plot_data %>%
+  pivot_longer(Oat_establishment:Pea_establishment,
+               names_to = "species", values_to = "count") %>%
+  mutate(species = str_replace(species, "_establishment", ""))%>%
+  
+
+  ggplot(aes(species, count)) +
+  geom_boxplot() +
+  geom_jitter(aes(species, count, color = studyLoc), 
+              width = 0.25, size = 4, alpha = 0.75) +
+  xlab("") +
+  ylab("Establishment") +
+  scale_color_manual(values = hcl.colors(5,palette = "Fall")) +
+  #scale_color_brewer(palette = "Dark2") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+  theme(axis.text = element_text(size = 20), axis.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 16)) +
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 16)) +
+  
+  theme(strip.text = element_text(size = 16, face = "plain"),
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18, face = "plain")) # Adjust the subtitles and ledgend font size
+
+ggplot(data, aes(x = Oat_establishment)) +
+  geom_histogram(aes(y = ..density..), color = "black", fill = "gray", bins = 30, alpha = 0.5) +
+  geom_density(aes(color = interaction(studyLoc)), size = 1) +
+  scale_color_manual(values = custom_colors) +
+  labs(
+    #title = "Distribution with Density Lines by Year and Location",
+    x = "Value",
+    y = "Density",
+    color = "Location"
+  ) +
+  theme_minimal()
+
+ggplot(data, aes(x = Pea_establishment)) +
+  geom_histogram(aes(y = ..density..), color = "black", fill = "gray", bins = 30, alpha = 0.5) +
+  geom_density(aes(color = interaction(studyLoc)), size = 1) +
+  scale_color_manual(values = custom_colors) +
+  labs(
+    #title = "Distribution with Density Lines by Year and Location",
+    x = "Value",
+    y = "Density",
+    color = "Location"
+  ) +
+  theme_minimal()
+```
+
+Height
+```{r,  echo=FALSE, warning=FALSE}
+
+plot_data %>%
+  pivot_longer(Oat_Height_1:Pea_Height_3,
+               names_to = "species", values_to = "height_cm") %>%
+  mutate(species = str_replace(species, "_Height", ""))%>%
+  
+
+  ggplot(aes(species, height_cm)) +
+  geom_boxplot() +
+  geom_jitter(aes(species, height_cm, color = studyLoc), 
+              width = 0.25, size = 4, alpha = 0.75) +
+  xlab("") +
+  ylab("Plant Height (cm)") +
+  scale_color_manual(values = hcl.colors(5,palette = "Fall")) +
+  #scale_color_brewer(palette = "Dark2") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+  theme(axis.text = element_text(size = 20), axis.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 16)) +
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 16)) +
+  
+  theme(strip.text = element_text(size = 16, face = "plain"),
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18, face = "plain")) # Adjust the subtitles and ledgend font size
+
+
+
+# Reshape data to long format for faceting
+plot_data %>%
+  select(studyLoc, Oat_Height_1:Oat_Height_3) %>%
+  pivot_longer(
+    cols = starts_with("Oat_Height_"),
+    names_to = "trait",
+    values_to = "value"
+  ) %>%
+ggplot(aes(x = value)) +
+  geom_histogram(aes(y = ..density..), color = "black", fill = "gray", bins = 30, alpha = 0.5) +
+  geom_density(aes(color = interaction(studyLoc)), size = 1) +
+  scale_color_manual(values = custom_colors) +
+  facet_wrap(~trait, scales = "free_x") +  # Facet by column
+  labs(
+    x = "Value",
+    y = "Density",
+    color = "Location"
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14)
+  )
+
+plot_data %>%
+  select(studyLoc, Pea_Height_1:Pea_Height_3) %>%
+  pivot_longer(
+    cols = starts_with("Pea_Height_"),
+    names_to = "trait",
+    values_to = "value"
+  ) %>%
+ggplot(aes(x = value)) +
+  geom_histogram(aes(y = ..density..), color = "black", fill = "gray", bins = 30, alpha = 0.5) +
+  geom_density(aes(color = interaction(studyLoc)), size = 1) +
+  scale_color_manual(values = custom_colors) +
+  facet_wrap(~trait, scales = "free_x") +  # Facet by column
+  labs(
+    x = "Value",
+    y = "Density",
+    color = "Location"
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14)
+  )
+```
+
+Maturity
+```{r,  echo=FALSE, warning=FALSE}
+
+plot_data %>%
+  pivot_longer(Oat_Heading_Date:Pea_Flowering_Date,
+               names_to = "species", values_to = "Date") %>%
+  mutate(species = str_replace(species, "_Date", ""))%>%
+  
+
+  ggplot(aes(species, Date)) +
+  geom_boxplot() +
+  geom_jitter(aes(species, Date, color = studyLoc), 
+              width = 0.25, size = 4, alpha = 0.75) +
+  xlab("") +
+  ylab("Julian Date") +
+  scale_color_manual(values = hcl.colors(5,palette = "Fall")) +
+  #scale_color_brewer(palette = "Dark2") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+  theme(axis.text = element_text(size = 20), axis.title = element_text(size = 20, face = "bold")) +
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 16)) +
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 16)) +
+  
+  theme(strip.text = element_text(size = 16, face = "plain"),
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18, face = "plain")) # Adjust the subtitles and ledgend font size
 
 ggplot(data, aes(x = Oat_Heading_Date)) +
   geom_histogram(aes(y = ..density..), color = "black", fill = "gray", bins = 30, alpha = 0.5) +
@@ -54,8 +217,7 @@ ggplot(data, aes(x = Oat_Heading_Date)) +
   ) +
   theme_minimal()
 
-
-ggplot(multi_location_data, aes(x = log(Oat_Heading_Date))) +
+ggplot(data, aes(x = Pea_Flowering_Date)) +
   geom_histogram(aes(y = ..density..), color = "black", fill = "gray", bins = 30, alpha = 0.5) +
   geom_density(aes(color = interaction(studyLoc)), size = 1) +
   scale_color_manual(values = custom_colors) +
@@ -67,7 +229,39 @@ ggplot(multi_location_data, aes(x = log(Oat_Heading_Date))) +
   ) +
   theme_minimal()
 
-rm(custom_colors)
 
 
+```
+
+Lodging
+```{r,  echo=FALSE, warning=FALSE}
+
+ggplot(plot_data, aes(x = "", y = Lodging)) +  # x is empty just to get one box
+  geom_boxplot() +
+  geom_jitter(aes(color = studyLoc), width = 0.25, size = 4, alpha = 0.75) +
+  xlab("") +
+  ylab("Lodging (0-9)") +
+  scale_color_manual(values = hcl.colors(5, palette = "Fall")) +
+  theme_classic() +
+  theme(
+    axis.text = element_text(size = 20),
+    axis.title = element_text(size = 20, face = "bold"),
+    axis.text.x = element_text(face = "bold", color = "black", size = 16),
+    axis.text.y = element_text(face = "bold", color = "black", size = 16),
+    strip.text = element_text(size = 16, face = "plain"),
+    legend.text = element_text(size = 16),
+    legend.title = element_text(size = 18, face = "plain")
+  )
+
+ggplot(data, aes(x = Lodging)) +
+  geom_histogram(aes(y = ..density..), color = "black", fill = "gray", bins = 30, alpha = 0.5) +
+  geom_density(aes(color = interaction(studyLoc)), size = 1) +
+  scale_color_manual(values = custom_colors) +
+  labs(
+    #title = "Distribution with Density Lines by Location",
+    x = "Value",
+    y = "Density",
+    color = "Location"
+  ) +
+  theme_minimal()
 ```

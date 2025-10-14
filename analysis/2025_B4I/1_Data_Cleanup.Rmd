@@ -6,10 +6,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, root.dir='~/Documents/Github/Oat-Pea_Intercrop')
-```
-
 ```{r}
 library(readr)
 library(RColorBrewer)
@@ -27,6 +23,10 @@ library(corrplot)
 library(emmeans)
 library(broom.mixed)
 library(knitr)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = here::here())
 ```
 
 ```{r}
@@ -78,6 +78,18 @@ IA_phenotypes <- read_csv("data/B4I_2025_IA_phenotypes.csv")%>%
 #  mutate(Pea_Maturity_Date = `Pea Maturity Date - Julian Day|CO_xxx:0003015`)%>%
   select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, intercropGermplasmName, observationLevel, observationUnitName, Oat_Height_1, Oat_Height_2, Oat_Height_3, Pea_Height_1, Pea_Height_2, Pea_Height_3, Oat_establishment, Pea_establishment, Lodging, Oat_Heading_Date, Pea_Flowering_Date)
 
+IA_phenotypes <- IA_phenotypes %>%
+  group_by(plotNumber) %>%
+  mutate(
+    across(c(Oat_Height_1, Oat_Height_2, Oat_Height_3, Pea_Height_1, Pea_Height_2, Pea_Height_3, Oat_establishment, Pea_establishment),
+           ~ ifelse(
+             observationLevel == "plot",
+             mean(.x[observationLevel == "subplot"], na.rm = TRUE),
+             .x
+           ))
+  ) %>%
+  ungroup()
+
 IL_phenotypes <- read_csv("data/B4I_2025_IL_phenotypes.csv")%>%
   mutate(studyLoc = "IL") %>%
 #  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
@@ -121,6 +133,18 @@ ND_phenotypes <- read_csv("data/B4I_2025_ND_phenotypes.csv")%>%
   mutate(Pea_Flowering_Date = `Pea Flowering Date - 10% - Julian Day|CO_xxx:0003014`)%>%
 #  mutate(Pea_Maturity_Date = `Pea Maturity Date - Julian Day|CO_xxx:0003015`)%>%
   select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, intercropGermplasmName, observationLevel, observationUnitName, Oat_Height_1, Oat_Height_2, Oat_Height_3, Pea_Height_1, Pea_Height_2, Pea_Height_3, Oat_establishment, Pea_establishment, Lodging, Oat_Heading_Date, Pea_Flowering_Date)
+
+NA_phenotypes <- ND_phenotypes %>%
+  group_by(plotNumber) %>%
+  mutate(
+    across(c(Oat_Height_1, Oat_Height_2, Oat_Height_3, Pea_Height_1, Pea_Height_2, Pea_Height_3, Oat_establishment, Pea_establishment),
+           ~ ifelse(
+             observationLevel == "plot",
+             mean(.x[observationLevel == "subplot"], na.rm = TRUE),
+             .x
+           ))
+  ) %>%
+  ungroup()
   
 NY_phenotypes <- read_csv("data/B4I_2025_NY_phenotypes.csv")%>%
   mutate(studyLoc = "NY") %>%
@@ -143,6 +167,18 @@ NY_phenotypes <- read_csv("data/B4I_2025_NY_phenotypes.csv")%>%
   mutate(Pea_Flowering_Date = `Pea Flowering Date - 10% - Julian Day|CO_xxx:0003014`)%>%
 #  mutate(Pea_Maturity_Date = `Pea Maturity Date - Julian Day|CO_xxx:0003015`)%>%
   select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, intercropGermplasmName, observationLevel, observationUnitName, Oat_Height_1, Oat_Height_2, Oat_Height_3, Pea_Height_1, Pea_Height_2, Pea_Height_3, Oat_establishment, Pea_establishment, Lodging, Oat_Heading_Date, Pea_Flowering_Date)
+
+NY_phenotypes <- NY_phenotypes %>%
+  group_by(plotNumber) %>%
+  mutate(
+    across(c(Oat_Height_1, Oat_Height_2, Oat_Height_3, Pea_Height_1, Pea_Height_2, Pea_Height_3, Oat_establishment, Pea_establishment),
+           ~ ifelse(
+             observationLevel == "plot",
+             mean(.x[observationLevel == "subplot"], na.rm = TRUE),
+             .x
+           ))
+  ) %>%
+  ungroup()
 ```
 
 ```{r}
@@ -180,5 +216,17 @@ multi_location_data$Pea_Flowering_Date <- as.numeric(multi_location_data$Pea_Flo
 ```
 
 ```{r}
-write_csv(multi_location_data, 'data/Intermediate/B4I_2025_multi_location_data.csv')
+#write_csv(multi_location_data, 'data/Intermediate/B4I_2025_multi_location_data.csv')
+```
+
+```{r}
+subplot_data <- multi_location_data %>%
+  filter(observationLevel == "subplot")
+plot_data <- multi_location_data %>%
+  filter(observationLevel == "plot")
+```
+
+```{r}
+#write_csv(plot_data, 'data/Intermediate/B4I_2025_multi_location_plotdata.csv')
+#write_csv(subplot_data, 'data/Intermediate/B4I_2025_multi_location_subplotdata.csv')
 ```
