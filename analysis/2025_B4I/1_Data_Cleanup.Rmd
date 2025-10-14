@@ -30,8 +30,155 @@ library(knitr)
 ```
 
 ```{r}
-AL_phenotypes <- read_csv("data/B4I_2025_AL_phenotypes.csv")
+# the rowNumber and columnNumber columns for ND and IA had #,NA so in excel I used Find&Replace to remove the ,NA from those columns 
+
+# Add in more traits once I have them for all locations 
+
+AL_phenotypes <- read_csv("data/B4I_2025_AL_phenotypes.csv")%>%
+  mutate(studyLoc = "AL") %>%
+#  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
+#  mutate(pea_yield = as.numeric(`Pea Grain Yield - g/m2|CO_xxx:0003008`)) %>%
+#  mutate(total_grain = (oat_yield + pea_yield))%>%mutate(Oat_Height_1 = as.numeric(`Plant height - cm|timepoint 1|COMP:0000114`))%>%
+  mutate(Oat_Height_1 = as.numeric(`Plant height - cm|timepoint 1|COMP:0000114`))%>%
+  mutate(Oat_Height_2 = as.numeric(`Plant height - cm|timepoint 2|COMP:0000115`))%>%
+  mutate(Oat_Height_3 = as.numeric(`Plant height - cm|CO_350:0000232`))%>%
+#  mutate(Oat_Height_4 = as.numeric(`Plant height - cm|timepoint 4|COMP:0000117`))%>%
+  mutate(Pea_Height_1 = as.numeric(`Pea Plant Height - cm|timepoint 1|COMP:0000122`))%>%
+  mutate(Pea_Height_2 = as.numeric(`Pea Plant Height - cm|timepoint 2|COMP:0000123`))%>%
+  mutate(Pea_Height_3 = as.numeric(`Pea Plant Height - cm|CO_xxx:0003005`))%>%
+#  mutate(Pea_Height_4 = as.numeric(`Pea Plant Height - cm|timepoint 4|COMP:0000125`))%>%
+  mutate(Oat_establishment = as.numeric(`Plant establishment - plants/ft2|CO_350:0005124`))%>%
+  mutate(Pea_establishment = as.numeric(`Pea Plant Establishment - plants/ft2|CO_xxx:0003011`))%>%
+  mutate(Lodging = as.numeric(`Lodging severity - 0-9 Rating|CO_350:0005007`))%>%
+  mutate(Oat_Heading_Date = `Heading date - Julian day|CO_350:0000270`) %>%
+#  mutate(Oat_Maturity_Date = `Maturity date - Julian day|CO_350:0000271`)%>%
+  mutate(Pea_Flowering_Date = `Pea Flowering Date - 10% - Julian Day|CO_xxx:0003014`)%>%
+#  mutate(Pea_Maturity_Date = `Pea Maturity Date - Julian Day|CO_xxx:0003015`)%>%
+  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, intercropGermplasmName, observationLevel, observationUnitName, Oat_Height_1, Oat_Height_2, Oat_Height_3, Pea_Height_1, Pea_Height_2, Pea_Height_3, Oat_establishment, Pea_establishment, Lodging, Oat_Heading_Date, Pea_Flowering_Date)
+
+IA_phenotypes <- read_csv("data/B4I_2025_IA_phenotypes.csv")%>%
+  mutate(studyLoc = "IA") %>%
+#  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
+#  mutate(pea_yield = as.numeric(`Pea Grain Yield - g/m2|CO_xxx:0003008`)) %>%
+#  mutate(total_grain = (oat_yield + pea_yield))%>%mutate(Oat_Height_1 = as.numeric(`Plant height - cm|timepoint 1|COMP:0000114`))%>%
+  mutate(Oat_Height_1 = as.numeric(`Plant height - cm|timepoint 1|COMP:0000114`))%>%
+  mutate(Oat_Height_2 = as.numeric(`Plant height - cm|timepoint 2|COMP:0000115`))%>%
+  mutate(Oat_Height_3 = as.numeric(`Plant height - cm|timepoint 3|COMP:0000116`))%>%
+#  mutate(Oat_Height_4 = as.numeric(`Plant height - cm|timepoint 4|COMP:0000117`))%>%
+  mutate(Pea_Height_1 = as.numeric(`Pea Plant Height - cm|timepoint 1|COMP:0000122`))%>%
+  mutate(Pea_Height_2 = as.numeric(`Pea Plant Height - cm|timepoint 2|COMP:0000123`))%>%
+  mutate(Pea_Height_3 = as.numeric(`Pea Plant Height - cm|timepoint 3|COMP:0000124`))%>%
+#  mutate(Pea_Height_4 = as.numeric(`Pea Plant Height - cm|timepoint 4|COMP:0000125`))%>%
+  mutate(Oat_establishment = as.numeric(`Plant establishment - plants/ft2|CO_350:0005124`))%>%
+  mutate(Pea_establishment = as.numeric(`Pea Plant Establishment - plants/ft2|CO_xxx:0003011`))%>%
+  mutate(Lodging = as.numeric(`Lodging severity - 0-9 Rating|CO_350:0005007`))%>%
+  mutate(Oat_Heading_Date = `Heading date - Julian day|CO_350:0000270`) %>%
+#  mutate(Oat_Maturity_Date = `Maturity date - Julian day|CO_350:0000271`)%>%
+  mutate(Pea_Flowering_Date = `Pea Flowering Date - 10% - Julian Day|CO_xxx:0003014`)%>%
+#  mutate(Pea_Maturity_Date = `Pea Maturity Date - Julian Day|CO_xxx:0003015`)%>%
+  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, intercropGermplasmName, observationLevel, observationUnitName, Oat_Height_1, Oat_Height_2, Oat_Height_3, Pea_Height_1, Pea_Height_2, Pea_Height_3, Oat_establishment, Pea_establishment, Lodging, Oat_Heading_Date, Pea_Flowering_Date)
+
+IL_phenotypes <- read_csv("data/B4I_2025_IL_phenotypes.csv")%>%
+  mutate(studyLoc = "IL") %>%
+#  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
+#  mutate(pea_yield = as.numeric(`Pea Grain Yield - g/m2|CO_xxx:0003008`)) %>%
+#  mutate(total_grain = (oat_yield + pea_yield))%>%mutate(Oat_Height_1 = as.numeric(`Plant height - cm|timepoint 1|COMP:0000114`))%>%
+  mutate(Oat_Height_1 = as.numeric(`Plant height - cm|timepoint 1|COMP:0000114`))%>%
+  mutate(Oat_Height_2 = as.numeric(`Plant height - cm|timepoint 2|COMP:0000115`))%>%
+  mutate(Oat_Height_3 = as.numeric(`Plant height - cm|timepoint 3|COMP:0000116`))%>%
+#  mutate(Oat_Height_4 = as.numeric(`Plant height - cm|timepoint 4|COMP:0000117`))%>%
+  mutate(Pea_Height_1 = as.numeric(`Pea Plant Height - cm|timepoint 1|COMP:0000122`))%>%
+  mutate(Pea_Height_2 = as.numeric(`Pea Plant Height - cm|timepoint 2|COMP:0000123`))%>%
+  mutate(Pea_Height_3 = as.numeric(`Pea Plant Height - cm|timepoint 3|COMP:0000124`))%>%
+#  mutate(Pea_Height_4 = as.numeric(`Pea Plant Height - cm|timepoint 4|COMP:0000125`))%>%
+  mutate(Oat_establishment = as.numeric(`Plant establishment - plants/ft2|CO_350:0005124`))%>%
+  mutate(Pea_establishment = as.numeric(`Pea Plant Establishment - plants/ft2|CO_xxx:0003011`))%>%
+  mutate(Lodging = as.numeric(`Lodging severity - 0-9 Rating|CO_350:0005007`))%>%
+  mutate(Oat_Heading_Date = `Heading date - Julian day|CO_350:0000270`) %>%
+#  mutate(Oat_Maturity_Date = `Maturity date - Julian day|CO_350:0000271`)%>%
+  mutate(Pea_Flowering_Date = `Pea Flowering Date - 10% - Julian Day|CO_xxx:0003014`)%>%
+#  mutate(Pea_Maturity_Date = `Pea Maturity Date - Julian Day|CO_xxx:0003015`)%>%
+  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, intercropGermplasmName, observationLevel, observationUnitName, Oat_Height_1, Oat_Height_2, Oat_Height_3, Pea_Height_1, Pea_Height_2, Pea_Height_3, Oat_establishment, Pea_establishment, Lodging, Oat_Heading_Date, Pea_Flowering_Date)
+
+ND_phenotypes <- read_csv("data/B4I_2025_ND_phenotypes.csv")%>%
+  mutate(studyLoc = "ND") %>%
+#  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
+#  mutate(pea_yield = as.numeric(`Pea Grain Yield - g/m2|CO_xxx:0003008`)) %>%
+#  mutate(total_grain = (oat_yield + pea_yield))%>%mutate(Oat_Height_1 = as.numeric(`Plant height - cm|timepoint 1|COMP:0000114`))%>%
+  mutate(Oat_Height_1 = as.numeric(`Plant height - cm|timepoint 1|COMP:0000114`))%>%
+  mutate(Oat_Height_2 = as.numeric(`Plant height - cm|timepoint 2|COMP:0000115`))%>%
+  mutate(Oat_Height_3 = as.numeric(`Plant height - cm|timepoint 3|COMP:0000116`))%>%
+#  mutate(Oat_Height_4 = as.numeric(`Plant height - cm|timepoint 4|COMP:0000117`))%>%
+  mutate(Pea_Height_1 = as.numeric(`Pea Plant Height - cm|timepoint 1|COMP:0000122`))%>%
+  mutate(Pea_Height_2 = as.numeric(`Pea Plant Height - cm|timepoint 2|COMP:0000123`))%>%
+  mutate(Pea_Height_3 = as.numeric(`Pea Plant Height - cm|timepoint 3|COMP:0000124`))%>%
+#  mutate(Pea_Height_4 = as.numeric(`Pea Plant Height - cm|timepoint 4|COMP:0000125`))%>%
+  mutate(Oat_establishment = as.numeric(`Plant establishment - plants/ft2|CO_350:0005124`))%>%
+  mutate(Pea_establishment = as.numeric(`Pea Plant Establishment - plants/ft2|CO_xxx:0003011`))%>%
+  mutate(Lodging = as.numeric(`Lodging severity - 0-9 Rating|CO_350:0005007`))%>%
+  mutate(Oat_Heading_Date = `Heading date - Julian day|CO_350:0000270`) %>%
+#  mutate(Oat_Maturity_Date = `Maturity date - Julian day|CO_350:0000271`)%>%
+  mutate(Pea_Flowering_Date = `Pea Flowering Date - 10% - Julian Day|CO_xxx:0003014`)%>%
+#  mutate(Pea_Maturity_Date = `Pea Maturity Date - Julian Day|CO_xxx:0003015`)%>%
+  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, intercropGermplasmName, observationLevel, observationUnitName, Oat_Height_1, Oat_Height_2, Oat_Height_3, Pea_Height_1, Pea_Height_2, Pea_Height_3, Oat_establishment, Pea_establishment, Lodging, Oat_Heading_Date, Pea_Flowering_Date)
+  
+NY_phenotypes <- read_csv("data/B4I_2025_NY_phenotypes.csv")%>%
+  mutate(studyLoc = "NY") %>%
+#  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
+#  mutate(pea_yield = as.numeric(`Pea Grain Yield - g/m2|CO_xxx:0003008`)) %>%
+#  mutate(total_grain = (oat_yield + pea_yield))%>%mutate(Oat_Height_1 = as.numeric(`Plant height - cm|timepoint 1|COMP:0000114`))%>%
+  mutate(Oat_Height_1 = as.numeric(`Plant height - cm|timepoint 1|COMP:0000114`))%>%
+  mutate(Oat_Height_2 = as.numeric(`Plant height - cm|timepoint 2|COMP:0000115`))%>%
+  mutate(Oat_Height_3 = as.numeric(`Plant height - cm|timepoint 3|COMP:0000116`))%>%
+#  mutate(Oat_Height_4 = as.numeric(`Plant height - cm|timepoint 4|COMP:0000117`))%>%
+  mutate(Pea_Height_1 = as.numeric(`Pea Plant Height - cm|timepoint 1|COMP:0000122`))%>%
+  mutate(Pea_Height_2 = as.numeric(`Pea Plant Height - cm|timepoint 2|COMP:0000123`))%>%
+  mutate(Pea_Height_3 = as.numeric(`Pea Plant Height - cm|timepoint 3|COMP:0000124`))%>%
+#  mutate(Pea_Height_4 = as.numeric(`Pea Plant Height - cm|timepoint 4|COMP:0000125`))%>%
+  mutate(Oat_establishment = as.numeric(`Plant establishment - plants/ft2|CO_350:0005124`))%>%
+  mutate(Pea_establishment = as.numeric(`Pea Plant Establishment - plants/ft2|CO_xxx:0003011`))%>%
+  mutate(Lodging = as.numeric(`Lodging severity - 0-9 Rating|CO_350:0005007`))%>%
+  mutate(Oat_Heading_Date = `Heading date - Julian day|CO_350:0000270`) %>%
+#  mutate(Oat_Maturity_Date = `Maturity date - Julian day|CO_350:0000271`)%>%
+  mutate(Pea_Flowering_Date = `Pea Flowering Date - 10% - Julian Day|CO_xxx:0003014`)%>%
+#  mutate(Pea_Maturity_Date = `Pea Maturity Date - Julian Day|CO_xxx:0003015`)%>%
+  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, intercropGermplasmName, observationLevel, observationUnitName, Oat_Height_1, Oat_Height_2, Oat_Height_3, Pea_Height_1, Pea_Height_2, Pea_Height_3, Oat_establishment, Pea_establishment, Lodging, Oat_Heading_Date, Pea_Flowering_Date)
 ```
 
+```{r}
+multi_location_data <- bind_rows(AL_phenotypes,IA_phenotypes,IL_phenotypes,ND_phenotypes,NY_phenotypes)
+```
 
+```{r}
+#colnames(multi_location_data)
+multi_location_data$studyName <- as.character(multi_location_data$studyName)
+multi_location_data$studyYear <- as.factor(multi_location_data$studyYear)
+multi_location_data$studyLoc <- as.factor(multi_location_data$studyLoc)
+multi_location_data$replicate <- as.factor(multi_location_data$replicate)
+multi_location_data$blockNumber <- as.factor(multi_location_data$blockNumber)
+multi_location_data$rowNumber <- as.factor(multi_location_data$rowNumber)
+multi_location_data$colNumber <- as.factor(multi_location_data$colNumber)
+multi_location_data$plotNumber <- as.character(multi_location_data$plotNumber)
+multi_location_data$germplasmName <- as.character(multi_location_data$germplasmName)
+multi_location_data$intercropGermplasmName <- as.character(multi_location_data$intercropGermplasmName)
+multi_location_data$observationLevel <- as.character(multi_location_data$observationLevel)
+multi_location_data$observationUnitName <- as.character(multi_location_data$observationUnitName)
+#multi_location_data$oat_yield <- as.numeric(multi_location_data$oat_yield)
+#multi_location_data$pea_yield <- as.numeric(multi_location_data$pea_yield)
+#multi_location_data$total_grain <- as.numeric(multi_location_data$total_grain)
+multi_location_data$Oat_Height_1 <- as.numeric(multi_location_data$Oat_Height_1)
+multi_location_data$Oat_Height_2 <- as.numeric(multi_location_data$Oat_Height_2)
+multi_location_data$Oat_Height_3 <- as.numeric(multi_location_data$Oat_Height_3)
+multi_location_data$Pea_Height_1 <- as.numeric(multi_location_data$Pea_Height_1)
+multi_location_data$Pea_Height_2 <- as.numeric(multi_location_data$Pea_Height_2)
+multi_location_data$Pea_Height_3 <- as.numeric(multi_location_data$Pea_Height_3)
+multi_location_data$Oat_establishment <- as.numeric(multi_location_data$Oat_establishment)
+multi_location_data$Pea_establishment <- as.numeric(multi_location_data$Pea_establishment)
+multi_location_data$Lodging <- as.numeric(multi_location_data$Lodging)
+multi_location_data$Oat_Heading_Date <- as.numeric(multi_location_data$Oat_Heading_Date)
+multi_location_data$Pea_Flowering_Date <- as.numeric(multi_location_data$Pea_Flowering_Date)
+```
 
+```{r}
+write_csv(multi_location_data, 'data/Intermediate/B4I_2025_multi_location_data.csv')
+```
