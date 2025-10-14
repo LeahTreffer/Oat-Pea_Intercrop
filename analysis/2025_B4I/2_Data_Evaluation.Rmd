@@ -1,0 +1,73 @@
+---
+title: "2_Data_Evaluation"
+author: "Leah Treffer"
+date: "2025-10-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, root.dir='~/Documents/Github/Oat-Pea_Intercrop')
+```
+
+```{r}
+library(readr)
+library(RColorBrewer)
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(kableExtra)
+library(ggrepel)
+library(ggplot2)
+library(ggfortify)  # For autoplot function for PCA
+library(lme4)
+library(emmeans)
+library(performance)
+library(corrplot)
+library(emmeans)
+library(broom.mixed)
+library(knitr)
+```
+
+```{r}
+data <- read.csv('data/Intermediate/B4I_2025_multi_location_data.csv')
+```
+
+## Yield Histogram for all locations
+```{r}
+custom_colors <- c(
+  "IL" = "#35B7AD",  
+  "ND" = "#1F28A2",  
+  "IA" = "#9D9ED4", 
+  "AL" = "#AE6C13",  
+  "NY" = "#7D0112"
+)
+
+ggplot(data, aes(x = Oat_Heading_Date)) +
+  geom_histogram(aes(y = ..density..), color = "black", fill = "gray", bins = 30, alpha = 0.5) +
+  geom_density(aes(color = interaction(studyLoc)), size = 1) +
+  scale_color_manual(values = custom_colors) +
+  labs(
+    #title = "Distribution with Density Lines by Year and Location",
+    x = "Value",
+    y = "Density",
+    color = "Location"
+  ) +
+  theme_minimal()
+
+
+ggplot(multi_location_data, aes(x = log(Oat_Heading_Date))) +
+  geom_histogram(aes(y = ..density..), color = "black", fill = "gray", bins = 30, alpha = 0.5) +
+  geom_density(aes(color = interaction(studyLoc)), size = 1) +
+  scale_color_manual(values = custom_colors) +
+  labs(
+    #title = "Distribution with Density Lines by Year and Location",
+    x = "Value",
+    y = "Density",
+    color = "Location"
+  ) +
+  theme_minimal()
+
+rm(custom_colors)
+
+
+```
