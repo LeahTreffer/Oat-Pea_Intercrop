@@ -1,0 +1,28 @@
+---
+title: "3_Prediction_MegaLMM"
+author: "Leah Treffer"
+date: "2026-01-21"
+output: html_document
+---
+
+```{r libraries}
+library(here)
+library(dplyr)
+```
+
+```{r install_MegaLMM}
+# needs OpenMP which MacOS doesn't support : https://mac.r-project.org/openmp/
+devtools::install_github('deruncie/MegaLMM')
+```
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = here::here())
+here::i_am('analysis/2025_B4I/3_Prediction_MegaLMM.Rmd')
+```
+
+```{r}
+data <- read.csv(here('data','Intermediate','B4I_2025_multi_location_data.csv'))
+plot_data <- read.csv(here('data','Intermediate','B4I_2025_multi_location_plotdata.csv'))
+subplot_data <- read.csv(here('data','Intermediate','B4I_2025_multi_location_subplotdata.csv'))
+```
+
