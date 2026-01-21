@@ -3,6 +3,8 @@ title: "2_Data_Evaluation"
 author: "Leah Treffer"
 date: "2025-10-14"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 
