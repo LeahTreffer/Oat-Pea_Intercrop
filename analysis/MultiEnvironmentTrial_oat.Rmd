@@ -18,7 +18,7 @@ here::i_am("analysis/MultiEnvironmentTrial_oat.Rmd")
 
 ```{r data}
 # Importing Phenotype file (Leah complied in other scripts and added a copy to the shared directory)
-multi_location_data <- read.csv("data/2023_2024_multi_location.csv")
+multi_location_data <- read.csv(here("data","2023_2024_multi_location.csv"))
 
 #list of accessions in alphabetical order
 accessions_48 <- multi_location_data %>% 
@@ -39,20 +39,21 @@ accessions_47 <- multi_location_data2 %>%
   unique()
 
 # GRM strait from t3, cool, but it looks like not all the accessions from Juan are on t3. we are missing 2 but we can move forward
-GRM2 <- readRDS("oatGRM_47.rds") # GRM made in ~/GitHub/Peter_2024_spring/Peter_2024_spring/scripts/Leah_BGLR_GMA.Rmd
-GRM3 <- readRDS("oatGRM2_47.rds") # GRM made in ~/GitHub/Peter_2024_spring/Peter_2024_spring/scripts/Leah_BGLR_GMA.Rmd ; added 0.0001 to the diagonal
+GRM2 <- readRDS(here("data","oatGRM_47.rds")) # GRM made in ~/GitHub/Peter_2024_spring/Peter_2024_spring/scripts/Leah_BGLR_GMA.Rmd
+GRM3 <- readRDS(here("data","oatGRM2_47.rds")) # GRM made in ~/GitHub/Peter_2024_spring/Peter_2024_spring/scripts/Leah_BGLR_GMA.Rmd ; added 0.0001 to the diagonal
 ```
 
 ```{r pheno_cleanup}
 # use data from multi_location_data2 to make a table of observation data
-
 grainWgt <- multi_location_data2 %>%
   mutate(oatYield = oat_yield) %>%
   mutate(peaYield = pea_yield) %>%
   mutate(total_grain = oat_yield + coalesce(pea_yield, 0))%>%
   mutate(peaAcc = peaName) %>%
   mutate(blockNumberF=as.factor(paste(studyYear, location, blockNumber))) %>% #block factor
-  dplyr::select(blockNumberF, studyYear, location, blockNumber,
+  mutate(UniqEnv = paste0(studyLoc,studyYear))%>%
+  mutate(UniqEnv_pea = paste0(peaAcc,'_',studyLoc,studyYear))%>%
+  dplyr::select(blockNumberF, UniqEnv, UniqEnv_pea, studyYear, location, blockNumber,
          plotNumber, management, germplasmName, peaAcc, oatYield, peaYield, total_grain) 
 
 # remove rows from the data file only if they have an NA value for both oat and pea yield
@@ -68,6 +69,7 @@ grainWgt <- grainWgt %>%
 grainWgt$studyYear <- as.factor(grainWgt$studyYear)
 grainWgt$location <- as.factor(grainWgt$location)
 grainWgt$blockNumber <- as.factor(grainWgt$blockNumber)
+grainWgt$UniqEnv <- as.factor(grainWgt$UniqEnv)
 
 # try without monoculture plots
 grainWgt2 <- grainWgt[grainWgt$management != "monoculture", ]
@@ -84,4 +86,23 @@ K = incOatAcc %*% GRM2 %*% t(incOatAcc)
 # try with the matrix with 0.001 added to the diagonal 
 K2 = incOatAcc %*% GRM3 %*% t(incOatAcc)
 
+```
+
+
+
+Adaping from MegaLMM tutorial: https://github.com/deruncie/MegaLMM/blob/master/vignettes/MultiEnvironmentTrial.Rmd
+
+```{r}
+yield_data2 <- grainWgt2%>%dplyr::select(germplasmName, UniqEnv, UniqEnv_pea, oatYield)
+yield_data2$UniqEnv <- as.character(yield_data2$UniqEnv)
+yield_data2$UniqEnv_pea <- as.character(yield_data2$UniqEnv_pea)
+```
+
+We can see the incidence matrix of lines by environments using the `Image` function in `MegaLMM`
+
+```{r}
+# Unique year, location
+Image(as.matrix(table(yield_data2$germplasmName,yield_data2$UniqEnv))) + theme(legend.position = 'none') + xlab('Environment') + ylab('germplasmName')
+# Unique year, location, pea ID
+Image(as.matrix(table(yield_data2$germplasmName,yield_data2$UniqEnv_pea))) + theme(legend.position = 'none') + xlab('Environment') + ylab('germplasmName')
 ```
