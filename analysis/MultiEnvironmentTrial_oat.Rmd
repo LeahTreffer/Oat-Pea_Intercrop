@@ -1,0 +1,87 @@
+---
+title: "MultiEnvironmentTrial_oat"
+author: "Leah Treffer"
+date: "2026-01-24"
+output: html_document
+---
+
+
+```{r libraries, include=FALSE}
+library(here)
+library(tidyverse)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+here::i_am("analysis/MultiEnvironmentTrial_oat.Rmd")
+```
+
+```{r data}
+# Importing Phenotype file (Leah complied in other scripts and added a copy to the shared directory)
+multi_location_data <- read.csv("data/2023_2024_multi_location.csv")
+
+#list of accessions in alphabetical order
+accessions_48 <- multi_location_data %>% 
+  dplyr::select(germplasmName) %>% 
+  arrange(germplasmName) %>% 
+  unique()
+
+# IL17-7339 and IL17-7334 are incredibly similar, combine observation data
+# naming it IL17-733X
+
+multi_location_data2 <- multi_location_data %>%
+  mutate(germplasmName = ifelse(germplasmName %in% c("IL17-7334", "IL17-7339"), "IL17-733X", germplasmName))
+
+#list of accessions in alphabetical order
+accessions_47 <- multi_location_data2 %>% 
+  dplyr::select(germplasmName) %>% 
+  arrange(germplasmName) %>% 
+  unique()
+
+# GRM strait from t3, cool, but it looks like not all the accessions from Juan are on t3. we are missing 2 but we can move forward
+GRM2 <- readRDS("oatGRM_47.rds") # GRM made in ~/GitHub/Peter_2024_spring/Peter_2024_spring/scripts/Leah_BGLR_GMA.Rmd
+GRM3 <- readRDS("oatGRM2_47.rds") # GRM made in ~/GitHub/Peter_2024_spring/Peter_2024_spring/scripts/Leah_BGLR_GMA.Rmd ; added 0.0001 to the diagonal
+```
+
+```{r pheno_cleanup}
+# use data from multi_location_data2 to make a table of observation data
+
+grainWgt <- multi_location_data2 %>%
+  mutate(oatYield = oat_yield) %>%
+  mutate(peaYield = pea_yield) %>%
+  mutate(total_grain = oat_yield + coalesce(pea_yield, 0))%>%
+  mutate(peaAcc = peaName) %>%
+  mutate(blockNumberF=as.factor(paste(studyYear, location, blockNumber))) %>% #block factor
+  dplyr::select(blockNumberF, studyYear, location, blockNumber,
+         plotNumber, management, germplasmName, peaAcc, oatYield, peaYield, total_grain) 
+
+# remove rows from the data file only if they have an NA value for both oat and pea yield
+# NAs were messing with the ability to calculate the covariance matrix correctly
+grainWgt <- grainWgt[!(is.na(grainWgt$oatYield) & is.na(grainWgt$peaYield)), ] 
+
+#pth: the na's for the mono pea accession were causing error 
+#Error in chol.default(S) : the leading minor of order 1 is not positive
+#this fixed the error, but is it correct
+grainWgt <- grainWgt %>% 
+  mutate(peaAcc = if_else(is.na(peaAcc), "none", peaAcc))  
+
+grainWgt$studyYear <- as.factor(grainWgt$studyYear)
+grainWgt$location <- as.factor(grainWgt$location)
+grainWgt$blockNumber <- as.factor(grainWgt$blockNumber)
+
+# try without monoculture plots
+grainWgt2 <- grainWgt[grainWgt$management != "monoculture", ]
+```
+
+Create K matrix
+
+```{r K, message=FALSE}
+incOatAcc <- model.matrix(~ -1 + germplasmName, grainWgt)
+
+#  use K = Z %*% GRM %*% t(Z),  Z is incidence matrix
+K = incOatAcc %*% GRM2 %*% t(incOatAcc)
+
+# try with the matrix with 0.001 added to the diagonal 
+K2 = incOatAcc %*% GRM3 %*% t(incOatAcc)
+
+```
