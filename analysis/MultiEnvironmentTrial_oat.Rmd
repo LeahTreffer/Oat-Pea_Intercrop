@@ -9,6 +9,24 @@ output: html_document
 ```{r libraries, include=FALSE}
 library(here)
 library(tidyverse)
+library(rrBLUP)
+library(ggplot2)
+source(here::here("code", "setupMegaLMMstate.R"))
+```
+
+`MegaLMM` is installed from GitHub:
+
+```{r}
+if(!require(devtools)) { install.packages("devtools"); library(devtools) }
+if(!require(MegaLMM)) { 
+  devtools::install_github('deruncie/MegaLMM')
+  library(MegaLMM) 
+  }
+```
+
+```{r eval=FALSE, include=FALSE}
+# devtools::install_github('deruncie/MegaLMM') # uncomment if needed to install. Install devtools first if needed with install.packages('devtools')
+library(MegaLMM)
 ```
 
 ```{r setup, include=FALSE}
@@ -43,6 +61,7 @@ GRM2 <- readRDS(here("data","oatGRM_47.rds")) # GRM made in ~/GitHub/Peter_2024_
 GRM3 <- readRDS(here("data","oatGRM2_47.rds")) # GRM made in ~/GitHub/Peter_2024_spring/Peter_2024_spring/scripts/Leah_BGLR_GMA.Rmd ; added 0.0001 to the diagonal
 ```
 
+
 ```{r pheno_cleanup}
 # use data from multi_location_data2 to make a table of observation data
 grainWgt <- multi_location_data2 %>%
@@ -53,7 +72,7 @@ grainWgt <- multi_location_data2 %>%
   mutate(blockNumberF=as.factor(paste(studyYear, location, blockNumber))) %>% #block factor
   mutate(UniqEnv = paste0(studyLoc,studyYear))%>%
   mutate(UniqEnv_pea = paste0(peaAcc,'_',studyLoc,studyYear))%>%
-  dplyr::select(blockNumberF, UniqEnv, UniqEnv_pea, studyYear, location, blockNumber,
+  dplyr::select(blockNumberF, UniqEnv, UniqEnv_pea, peaAcc, studyYear, location, blockNumber,
          plotNumber, management, germplasmName, peaAcc, oatYield, peaYield, total_grain) 
 
 # remove rows from the data file only if they have an NA value for both oat and pea yield
@@ -93,9 +112,10 @@ K2 = incOatAcc %*% GRM3 %*% t(incOatAcc)
 Adaping from MegaLMM tutorial: https://github.com/deruncie/MegaLMM/blob/master/vignettes/MultiEnvironmentTrial.Rmd
 
 ```{r}
-yield_data2 <- grainWgt2%>%dplyr::select(germplasmName, UniqEnv, UniqEnv_pea, oatYield)
+yield_data2 <- grainWgt2%>%dplyr::select(germplasmName, UniqEnv, UniqEnv_pea, peaAcc, oatYield)
 yield_data2$UniqEnv <- as.character(yield_data2$UniqEnv)
 yield_data2$UniqEnv_pea <- as.character(yield_data2$UniqEnv_pea)
+yield_data2$Population <- NA
 ```
 
 We can see the incidence matrix of lines by environments using the `Image` function in `MegaLMM`
@@ -105,4 +125,209 @@ We can see the incidence matrix of lines by environments using the `Image` funct
 Image(as.matrix(table(yield_data2$germplasmName,yield_data2$UniqEnv))) + theme(legend.position = 'none') + xlab('Environment') + ylab('germplasmName')
 # Unique year, location, pea ID
 Image(as.matrix(table(yield_data2$germplasmName,yield_data2$UniqEnv_pea))) + theme(legend.position = 'none') + xlab('Environment') + ylab('germplasmName')
+# Unique year, pea ID
+Image(as.matrix(table(yield_data2$germplasmName,yield_data2$peaAcc))) + theme(legend.position = 'none') + xlab('Environment') + ylab('germplasmName')
 ```
+
+```{r}
+hist(table(yield_data2$germplasmName),main = 'Environments per line',breaks=20)
+hist(table(yield_data2$UniqEnv),main = 'Lines per Environment',breaks=20)
+hist(table(yield_data2$peaAcc),main = 'Lines per Environment',breaks=20)
+```
+
+MegaLMM works by each line having one value per environment 
+
+```{r}
+# mean value for oats that have multiple occurances with the same pea in the same location 
+yield_data2_mean <- yield_data2 |>
+  dplyr::summarise(
+    oatYield = mean(oatYield, na.rm = TRUE),
+    .by = c(germplasmName, Population, UniqEnv)
+  )
+
+yield_data2_mean <- yield_data2 |>
+  dplyr::summarise(
+    oatYield = mean(oatYield, na.rm = TRUE),
+    .by = c(germplasmName, Population, peaAcc)
+  )
+```
+
+We can view the matrix also using `Image`
+
+```{r}
+Image(GRM2)
+```
+
+## Formatting data from `MegaLMM`
+
+The yield data was provided in the **tall** format, meaning a single observation per row. In this format we would say we have 1 trait (`Yield`) with values measured in many environments.
+
+But `MegaLMM` isn't good for modeling GxE like this. Instead, we want to consider the yield in each environment as a separate trait, and each line is measured for 6-9 of these traits. So we need to construct a `502x19` trait matrix. The `MegaLMM` package includes a helper function to do this called `create_data_matrices`. This uses `tidyr`'s `pivot_wider` function to create the matrix, and the arguments are the same.
+
+```{r}
+data_matrices2 = create_data_matrices(
+  tall_data = yield_data2_mean, # your input tall data.frame,
+  id_cols = c('germplasmName','Population'), # vector giving the set of columns of tall_data used to identify each individual, and any covariates you'll want to use to model the trait data across individuals.
+  names_from = 'UniqEnv_pea', # vector giving the set of columns of tall_data used to identify each trait 
+  values_from = 'oatYield' # name of the trait data column
+)
+
+data_matrices2 = create_data_matrices(
+  tall_data = yield_data2_mean, # your input tall data.frame,
+  id_cols = c('germplasmName','Population'), # vector giving the set of columns of tall_data used to identify each individual, and any covariates you'll want to use to model the trait data across individuals.
+  names_from = 'peaAcc', # vector giving the set of columns of tall_data used to identify each trait 
+  values_from = 'oatYield' # name of the trait data column
+)
+```
+
+The output of `create_data_matrices` is a list with 3 elements. We'll only use the first two.
+
+The first is a new data.frame with one row per individual, and a single column giving the Line identifier. If you have covariates among lines (e.g. sex, population, etc), those variables should be included here too.
+
+```{r}
+sample_data2 = data_matrices2$data
+sample_data2
+```
+
+The second is the `nxp` trait matrix. The rows of the trait matrix are aligned with the rows of the individual identifier data.frame. We can extract these for use in `MegaLMM`:
+
+```{r}
+Y2 = data_matrices2$Y
+head(Y2)[,1:5]
+```
+
+One check we need to do is ensure all our individuals in our data are represented in the genomic relationship matrix:
+
+```{r}
+all(rownames(GRM2) %in% sample_data2$germplasmName)
+GRM2 = GRM2[sample_data2$germplasmName,sample_data2$germplasmName]
+```
+
+# Set up Cross Validation
+
+The goal of genomic prediction is to accurately predict the genetic values of individuals that are not observed in a particular environment. The standard way to estimate this accuracy is to mask a portion of the lines in the input data, use a model to predict these masked values, and then measure the correlation between the predicted values and the original data. In this tutorial we will do only 1 round of a k-fold cross-validation. Generally you would repeat this with other training / testing partition.
+
+Because we are evaluating the accuracy for incomplete multi-environment trial prediction, we will mask different set of individuals in each environment, so each individual maintains input data in at least some individuals.
+
+Because the individuals are stratified between two populations, we will ensure all testing individuals come from the same population. The masking algorithm will be:
+
+1.  For each environment, decide which population is best represented
+2.  For the observed individuals in that population, divide them into k-folds
+3.  Create a matrix with the testing sets (fold_ID) for each observation
+
+Not not worry about understanding this code! The call to `set.seed()` at the beginning makes it repeatable.
+
+```{r}
+#set.seed(1)
+#k_fold = 5 # we will hold out 1/5 = 20% of the observations from each environment
+#fold_ID_matrix = matrix(NA,nrow = nrow(Y),ncol = ncol(Y),dimnames = dimnames(Y))
+#for(i in 1:ncol(fold_ID_matrix)) {
+#  observed_lines = sample_data[!is.na(Y[,i]),]
+#  pop = names(sort(table(observed_lines$Population),decreasing=T))[1]
+#  observed_lines = subset(observed_lines,Population == pop)
+#  n_lines = nrow(observed_lines)
+#  observed_lines$fold = sample(rep(1:k_fold,(n_lines/k_fold)+1))[1:n_lines]
+#  fold_ID_matrix[match(observed_lines$Line,rownames(fold_ID_matrix)),i] = observed_lines$fold
+#}
+```
+
+
+# from JL : ~/DSFAS_Recommending/analysis/WashingtonSoftSpringWheatTrials.Rmd
+
+```{r}
+yield_data3<-yield_data2%>%
+  filter(UniqEnv == "NY2023")%>%
+  dplyr::select(peaAcc, germplasmName, oatYield)
+
+accNames <- yield_data3$germplasmName |> unique()
+nAcc <- accNames |> length() # 47
+trialNames <- yield_data3$peaAcc |> unique()
+nTrials <- trialNames |> length() # 12
+
+data_matrices <- MegaLMM::create_data_matrices(
+  tall_data = yield_data3, # your input tall data.frame,
+  id_cols = "germplasmName", # vector giving the set of columns of tall_data used to identify each individual, and any covariates you'll want to use to model the trait data across individuals.
+  names_from = 'peaAcc', # vector giving the set of columns of tall_data used to identify each trait 
+  values_from = 'oatYield' # name of the trait data column
+)
+sample_data <- data_matrices$data
+yldWide <- data_matrices$Y
+yldWide <- yldWide[, apply(yldWide, 2, 
+                           function(v) sum(is.na(v)) < 0.95 * nrow(yldWide))]
+
+```
+
+#### Set up results objects
+
+```{r Set up results objects}
+nCVfolds <- 6
+allLambdaPost <- NULL
+allCorr <- tibble()
+
+accNamesTib <- tibble(germplasmName=accNames)
+seed <- 6234
+set.seed(seed)
+runID <- paste0("tempRunID", seed) # Will make a folder with this name
+```
+
+#### Run cross validation -- CV2
+The idea here is, per trial, to leave N lines in the trial and predict the
+remaining lines.  This is a case where we are predicting old accessions in 
+old environments.
+```{r Run cross validation -- CV2, eval=FALSE}
+runID <- paste0(runID, "CV2")
+# Some cross val in each trial
+#for (trialName in trialNames){
+testTrials <- sample(trialNames, 6)
+for (trialName in testTrials){
+  for (cvFold in 1:nCVfolds){
+    cat("####", which(testTrials == trialName), trialName, cvFold, "####", "\n")
+    yldTrain <- yldWide
+    nAccInTrial <- sum(!is.na(yldTrain[, trialName]))
+    setMissing <- sample(nAccInTrial, size=nAccInTrial / 2 , replace=F)
+    yldTrain[!is.na(yldTrain[, trialName]), trialName][setMissing] <- NA
+    
+    MegaLMM_state <- setupMegaLMMstate(accNames=accNamesTib, wideData=yldTrain,
+                                       kinMat=GRM2, runID=runID) # try different things here for wideData
+
+    # Burn in
+    n_iter <- 100
+    for (i in 1:6){
+      cat(i)
+      # Manually re-order from biggest to smallest
+      MegaLMM_state <- reorder_factors(MegaLMM_state, drop_cor_threshold = 0.6)
+      # Clear previous collected samples because we've re-started the chain 
+      MegaLMM_state <- clear_Posterior(MegaLMM_state)
+      # Draw n_iter new samples, storing the chain
+      MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+    }
+    cat("\n")
+    MegaLMM_state <- clear_Posterior(MegaLMM_state)
+    
+    # Sampling
+    n_iter = 400
+    MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+    MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
+
+    Lambda_samples = load_posterior_param(MegaLMM_state,'Lambda')
+    Lambda_hat <- get_posterior_mean(Lambda_samples)
+    U_samples = load_posterior_param(MegaLMM_state,'U_CV2')
+    U_hat = get_posterior_mean(U_samples)
+    Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
+    
+    obsYld <- yldWide[!is.na(yldWide[, trialName]), trialName][setMissing]
+    predGen <- U_hat[!is.na(yldWide[, trialName]), trialName][setMissing]
+    predPhen <- Eta_mean[!is.na(yldWide[, trialName]), trialName][setMissing]
+    Uhat_accuracy <- cor(obsYld, predGen)
+    Eta_mean_accuracy <- cor(obsYld, predPhen)
+    
+    allLambdaPost <- rbind(allLambdaPost, Lambda_hat)
+    toAdd <- tibble(trial=trialName, accVec=list(names(obsYld)), 
+                    genAcc=Uhat_accuracy, phenAcc=Eta_mean_accuracy)
+    allCorr <- bind_rows(allCorr, toAdd)
+  }#END CV
+  saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
+          file=here::here("output", "megaLMM", paste0(seed, "MegaLMMresultsCV2.rds")))
+}#END trial
+```
+
