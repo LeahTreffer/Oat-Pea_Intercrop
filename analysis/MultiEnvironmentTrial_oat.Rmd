@@ -270,7 +270,7 @@ allCorr <- tibble()
 accNamesTib <- tibble(germplasmName=accNames)
 seed <- 6234
 set.seed(seed)
-runID <- paste0("tempRunID", seed) # Will make a folder with this name
+runID <- paste0("NY2023_", seed) # Will make a folder with this name
 ```
 
 #### Run cross validation -- CV2
@@ -333,7 +333,7 @@ for (trialName in testTrials){
     allCorr <- bind_rows(allCorr, toAdd)
   }#END CV
   saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
-          file=here::here("output", "megaLMM", paste0(seed, "MegaLMMresultsCV2.rds")))
+          file=here::here("output", "megaLMM", paste0(seed, "NY2023_MegaLMMresultsCV2.rds")))
 }#END trial
 ```
 
@@ -510,7 +510,7 @@ for (trialName in testTrials){
     allCorr <- bind_rows(allCorr, toAdd)
   }#END CV
   saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
-          file=here::here("output", "megaLMM", paste0(seed, "MegaLMMresultsCV2.rds")))
+          file=here::here("output", "megaLMM", paste0(seed, "NY2024_MegaLMMresultsCV2.rds")))
 }#END trial
 ```
 
