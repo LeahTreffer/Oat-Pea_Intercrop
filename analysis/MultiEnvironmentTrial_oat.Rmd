@@ -234,6 +234,9 @@ Not not worry about understanding this code! The call to `set.seed()` at the beg
 
 # from JL : ~/DSFAS_Recommending/analysis/WashingtonSoftSpringWheatTrials.Rmd
 
+##########
+NY 2023
+
 ```{r}
 yield_data3<-yield_data2%>%
   filter(UniqEnv == "NY2023")%>%
@@ -275,23 +278,26 @@ The idea here is, per trial, to leave N lines in the trial and predict the
 remaining lines.  This is a case where we are predicting old accessions in 
 old environments.
 ```{r Run cross validation -- CV2, eval=FALSE}
-runID <- paste0(runID, "CV2")
+runID <- paste0("output/megaLMM/", runID, "CV2")
 # Some cross val in each trial
 #for (trialName in trialNames){
-testTrials <- sample(trialNames, 6)
+testTrials <- sample(trialNames, 12)
 for (trialName in testTrials){
   for (cvFold in 1:nCVfolds){
     cat("####", which(testTrials == trialName), trialName, cvFold, "####", "\n")
     yldTrain <- yldWide
+    yldTest <- yldWide
     nAccInTrial <- sum(!is.na(yldTrain[, trialName]))
     setMissing <- sample(nAccInTrial, size=nAccInTrial / 2 , replace=F)
     yldTrain[!is.na(yldTrain[, trialName]), trialName][setMissing] <- NA
+    yldTest[which(!is.na(yldTest[, trialName]))[-setMissing], trialName] <- NA
+
     
     MegaLMM_state <- setupMegaLMMstate(accNames=accNamesTib, wideData=yldTrain,
                                        kinMat=GRM2, runID=runID) # try different things here for wideData
 
     # Burn in
-    n_iter <- 100
+    n_iter <- 200
     for (i in 1:6){
       cat(i)
       # Manually re-order from biggest to smallest
@@ -305,7 +311,7 @@ for (trialName in testTrials){
     MegaLMM_state <- clear_Posterior(MegaLMM_state)
     
     # Sampling
-    n_iter = 400
+    n_iter = 2000
     MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
     MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
 
@@ -331,3 +337,952 @@ for (trialName in testTrials){
 }#END trial
 ```
 
+summary of the MCMC chain 
+
+```{r}
+print(MegaLMM_state)
+summary(MegaLMM_state)
+```
+
+Prediction Accuracy 
+
+```{r}
+MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+# should this be the whole data set or the Test set (the ones masked in to train)
+```
+
+# Working with postierior samples
+
+```{r}
+dim(MegaLMM_state$Posterior$Lambda)
+U = load_posterior_param(MegaLMM_state,'U_CV2')
+# reload all parameters
+MegaLMM_state$Posterior = reload_Posterior(MegaLMM_state)
+dim(MegaLMM_state$Posterior$Lambda)
+dim(MegaLMM_state$Posterior$F_h2)
+# traceplot to check convergence
+plot(U[,1,2],type='l')
+traceplot_array(MegaLMM_state$Posterior$Lambda,facet_dim = 2,name = 'Lambda')
+# summaries of the posterior samples
+U_hat = get_posterior_mean(U)
+dim(U_hat)
+# calculate lower and upper 0.95 Highest Posterior Density bounds for each element of the matrix `U`
+U_HPD = get_posterior_HPDinterval(U,prob = 0.95)
+dim(U_HPD)
+```
+
+```{r}
+# calculate functions of the parameters stored in the Posterior database
+P_samples = get_posterior_FUN(MegaLMM_state,t(Lambda) %*% Lambda + diag(1/tot_Eta_prec[1,]))
+dim(P_samples)
+```
+
+Extracting random effect covariances
+
+extract the estimates and posterior distributions on the key variance-covariance parameters $\mathbf{G}$ and $\mathbf{R}$. The model for the genetic covariance in MegaLMM is: $\mathbf{G} = \mathbf{\Lambda^T \Sigma_{h^2_F} \Lambda} + \mathbf{\Psi \otimes \Sigma_{h^2_R}}$
+
+```{r include=F}
+#G_samples = get_posterior_FUN(MegaLMM_state,
+#              t(Lambda) %*% diag(F_h2[1,]) %*% Lambda + diag(resid_h2[,1]/tot_Eta_prec[1,])
+#            )
+#dim(G_samples)
+```
+MegaLMM has functions to calculate these
+```{r}
+G_samples = load_posterior_param(MegaLMM_state,'G')
+R_samples = load_posterior_param(MegaLMM_state,'R')
+dim(G_samples)
+dim(R_samples)
+```
+
+```{r}
+rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy)
+```
+
+
+
+
+
+
+##########
+NY 2024
+
+```{r}
+# I can only get MegaLMM::create_data_matrices to run if there is one value for a oat-pea combo. if that exact combo had more than one plot, the function dosn't like it. So using the mean of any duplicated combinations
+yield_data3<-yield_data2%>%
+  filter(UniqEnv == "NY2024")%>%
+  dplyr::summarise(
+    oatYield = mean(oatYield, na.rm = TRUE),
+    .by = c(germplasmName, peaAcc))%>%
+  dplyr::select(peaAcc, germplasmName, oatYield)
+
+accNames <- yield_data3$germplasmName |> unique()
+nAcc <- accNames |> length() # 47
+trialNames <- yield_data3$peaAcc |> unique()
+nTrials <- trialNames |> length() # 12
+
+data_matrices <- MegaLMM::create_data_matrices(
+  tall_data = yield_data3, # your input tall data.frame,
+  id_cols = "germplasmName", # vector giving the set of columns of tall_data used to identify each individual, and any covariates you'll want to use to model the trait data across individuals.
+  names_from = 'peaAcc', # vector giving the set of columns of tall_data used to identify each trait 
+  values_from = 'oatYield' # name of the trait data column
+)
+sample_data <- data_matrices$data
+yldWide <- data_matrices$Y
+yldWide <- yldWide[, apply(yldWide, 2, 
+                           function(v) sum(is.na(v)) < 0.95 * nrow(yldWide))]
+
+```
+
+#### Set up results objects
+
+```{r Set up results objects}
+nCVfolds <- 6
+allLambdaPost <- NULL
+allCorr <- tibble()
+
+accNamesTib <- tibble(germplasmName=accNames)
+seed <- 6234
+set.seed(seed)
+runID <- paste0("NY2024_", seed) # Will make a folder with this name
+```
+
+#### Run cross validation -- CV2
+The idea here is, per trial, to leave N lines in the trial and predict the
+remaining lines.  This is a case where we are predicting old accessions in 
+old environments.
+```{r Run cross validation -- CV2, eval=FALSE}
+runID <- paste0("output/megaLMM/", runID, "CV2")
+# Some cross val in each trial
+#for (trialName in trialNames){
+testTrials <- sample(trialNames, 12)
+for (trialName in testTrials){
+  for (cvFold in 1:nCVfolds){
+    cat("####", which(testTrials == trialName), trialName, cvFold, "####", "\n")
+    yldTrain <- yldWide
+    yldTest <- yldWide
+    nAccInTrial <- sum(!is.na(yldTrain[, trialName]))
+    setMissing <- sample(nAccInTrial, size=nAccInTrial / 2 , replace=F)
+    yldTrain[!is.na(yldTrain[, trialName]), trialName][setMissing] <- NA
+    yldTest[which(!is.na(yldTest[, trialName]))[-setMissing], trialName] <- NA
+
+    
+    MegaLMM_state <- setupMegaLMMstate(accNames=accNamesTib, wideData=yldTrain,
+                                       kinMat=GRM2, runID=runID) # try different things here for wideData
+
+    # Burn in
+    n_iter <- 200
+    for (i in 1:6){
+      cat(i)
+      # Manually re-order from biggest to smallest
+      MegaLMM_state <- reorder_factors(MegaLMM_state, drop_cor_threshold = 0.6)
+      # Clear previous collected samples because we've re-started the chain 
+      MegaLMM_state <- clear_Posterior(MegaLMM_state)
+      # Draw n_iter new samples, storing the chain
+      MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+    }
+    cat("\n")
+    MegaLMM_state <- clear_Posterior(MegaLMM_state)
+    
+    # Sampling
+    n_iter = 2000
+    MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+    MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
+
+    Lambda_samples = load_posterior_param(MegaLMM_state,'Lambda')
+    Lambda_hat <- get_posterior_mean(Lambda_samples)
+    U_samples = load_posterior_param(MegaLMM_state,'U_CV2')
+    U_hat = get_posterior_mean(U_samples)
+    Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
+    
+    obsYld <- yldWide[!is.na(yldWide[, trialName]), trialName][setMissing]
+    predGen <- U_hat[!is.na(yldWide[, trialName]), trialName][setMissing]
+    predPhen <- Eta_mean[!is.na(yldWide[, trialName]), trialName][setMissing]
+    Uhat_accuracy <- cor(obsYld, predGen)
+    Eta_mean_accuracy <- cor(obsYld, predPhen)
+    
+    allLambdaPost <- rbind(allLambdaPost, Lambda_hat)
+    toAdd <- tibble(trial=trialName, accVec=list(names(obsYld)), 
+                    genAcc=Uhat_accuracy, phenAcc=Eta_mean_accuracy)
+    allCorr <- bind_rows(allCorr, toAdd)
+  }#END CV
+  saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
+          file=here::here("output", "megaLMM", paste0(seed, "MegaLMMresultsCV2.rds")))
+}#END trial
+```
+
+summary of the MCMC chain 
+
+```{r}
+print(MegaLMM_state)
+summary(MegaLMM_state)
+```
+
+Prediction Accuracy 
+
+```{r}
+MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+# should this be the whole data set or the Test set (the ones masked in to train)
+```
+
+
+# Working with postierior samples
+
+```{r}
+dim(MegaLMM_state$Posterior$Lambda)
+U = load_posterior_param(MegaLMM_state,'U_CV2')
+# reload all parameters
+MegaLMM_state$Posterior = reload_Posterior(MegaLMM_state)
+dim(MegaLMM_state$Posterior$Lambda)
+dim(MegaLMM_state$Posterior$F_h2)
+# traceplot to check convergence
+plot(U[,1,2],type='l')
+traceplot_array(MegaLMM_state$Posterior$Lambda,facet_dim = 2,name = 'Lambda')
+# summaries of the posterior samples
+U_hat = get_posterior_mean(U)
+dim(U_hat)
+# calculate lower and upper 0.95 Highest Posterior Density bounds for each element of the matrix `U`
+U_HPD = get_posterior_HPDinterval(U,prob = 0.95)
+dim(U_HPD)
+```
+
+```{r}
+# calculate functions of the parameters stored in the Posterior database
+P_samples = get_posterior_FUN(MegaLMM_state,t(Lambda) %*% Lambda + diag(1/tot_Eta_prec[1,]))
+dim(P_samples)
+```
+
+Extracting random effect covariances
+
+extract the estimates and posterior distributions on the key variance-covariance parameters $\mathbf{G}$ and $\mathbf{R}$. The model for the genetic covariance in MegaLMM is: $\mathbf{G} = \mathbf{\Lambda^T \Sigma_{h^2_F} \Lambda} + \mathbf{\Psi \otimes \Sigma_{h^2_R}}$
+
+```{r include=F}
+#G_samples = get_posterior_FUN(MegaLMM_state,
+#              t(Lambda) %*% diag(F_h2[1,]) %*% Lambda + diag(resid_h2[,1]/tot_Eta_prec[1,])
+#            )
+#dim(G_samples)
+```
+MegaLMM has functions to calculate these
+```{r}
+G_samples = load_posterior_param(MegaLMM_state,'G')
+R_samples = load_posterior_param(MegaLMM_state,'R')
+dim(G_samples)
+dim(R_samples)
+```
+
+```{r}
+rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy)
+```
+
+
+
+
+##########
+IL 2023
+
+```{r}
+# I can only get MegaLMM::create_data_matrices to run if there is one value for a oat-pea combo. if that exact combo had more than one plot, the function dosn't like it. So using the mean of any duplicated combinations
+yield_data3<-yield_data2%>%
+  filter(UniqEnv == "IL2023")%>%
+  dplyr::summarise(
+    oatYield = mean(oatYield, na.rm = TRUE),
+    .by = c(germplasmName, peaAcc))%>%
+  dplyr::select(peaAcc, germplasmName, oatYield)
+
+accNames <- yield_data3$germplasmName |> unique()
+nAcc <- accNames |> length() # 47
+trialNames <- yield_data3$peaAcc |> unique()
+nTrials <- trialNames |> length() # 12
+
+data_matrices <- MegaLMM::create_data_matrices(
+  tall_data = yield_data3, # your input tall data.frame,
+  id_cols = "germplasmName", # vector giving the set of columns of tall_data used to identify each individual, and any covariates you'll want to use to model the trait data across individuals.
+  names_from = 'peaAcc', # vector giving the set of columns of tall_data used to identify each trait 
+  values_from = 'oatYield' # name of the trait data column
+)
+sample_data <- data_matrices$data
+yldWide <- data_matrices$Y
+yldWide <- yldWide[, apply(yldWide, 2, 
+                           function(v) sum(is.na(v)) < 0.95 * nrow(yldWide))]
+
+```
+
+#### Set up results objects
+
+```{r Set up results objects}
+nCVfolds <- 6
+allLambdaPost <- NULL
+allCorr <- tibble()
+
+accNamesTib <- tibble(germplasmName=accNames)
+seed <- 6234
+set.seed(seed)
+runID <- paste0("IL2023_", seed) # Will make a folder with this name
+```
+
+#### Run cross validation -- CV2
+The idea here is, per trial, to leave N lines in the trial and predict the
+remaining lines.  This is a case where we are predicting old accessions in 
+old environments.
+```{r Run cross validation -- CV2, eval=FALSE}
+runID <- paste0("output/megaLMM/", runID, "CV2")
+# Some cross val in each trial
+#for (trialName in trialNames){
+testTrials <- sample(trialNames, 12)
+for (trialName in testTrials){
+  for (cvFold in 1:nCVfolds){
+    cat("####", which(testTrials == trialName), trialName, cvFold, "####", "\n")
+    yldTrain <- yldWide
+    yldTest <- yldWide
+    nAccInTrial <- sum(!is.na(yldTrain[, trialName]))
+    setMissing <- sample(nAccInTrial, size=nAccInTrial / 2 , replace=F)
+    yldTrain[!is.na(yldTrain[, trialName]), trialName][setMissing] <- NA
+    yldTest[which(!is.na(yldTest[, trialName]))[-setMissing], trialName] <- NA
+
+    
+    MegaLMM_state <- setupMegaLMMstate(accNames=accNamesTib, wideData=yldTrain,
+                                       kinMat=GRM2, runID=runID) # try different things here for wideData
+
+    # Burn in
+    n_iter <- 200
+    for (i in 1:6){
+      cat(i)
+      # Manually re-order from biggest to smallest
+      MegaLMM_state <- reorder_factors(MegaLMM_state, drop_cor_threshold = 0.6)
+      # Clear previous collected samples because we've re-started the chain 
+      MegaLMM_state <- clear_Posterior(MegaLMM_state)
+      # Draw n_iter new samples, storing the chain
+      MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+    }
+    cat("\n")
+    MegaLMM_state <- clear_Posterior(MegaLMM_state)
+    
+    # Sampling
+    n_iter = 2000
+    MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+    MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
+
+    Lambda_samples = load_posterior_param(MegaLMM_state,'Lambda')
+    Lambda_hat <- get_posterior_mean(Lambda_samples)
+    U_samples = load_posterior_param(MegaLMM_state,'U_CV2')
+    U_hat = get_posterior_mean(U_samples)
+    Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
+    
+    obsYld <- yldWide[!is.na(yldWide[, trialName]), trialName][setMissing]
+    predGen <- U_hat[!is.na(yldWide[, trialName]), trialName][setMissing]
+    predPhen <- Eta_mean[!is.na(yldWide[, trialName]), trialName][setMissing]
+    Uhat_accuracy <- cor(obsYld, predGen)
+    Eta_mean_accuracy <- cor(obsYld, predPhen)
+    
+    allLambdaPost <- rbind(allLambdaPost, Lambda_hat)
+    toAdd <- tibble(trial=trialName, accVec=list(names(obsYld)), 
+                    genAcc=Uhat_accuracy, phenAcc=Eta_mean_accuracy)
+    allCorr <- bind_rows(allCorr, toAdd)
+  }#END CV
+  saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
+          file=here::here("output", "megaLMM", paste0(seed, "IL2023_MegaLMMresultsCV2.rds")))
+}#END trial
+```
+
+summary of the MCMC chain 
+
+```{r}
+print(MegaLMM_state)
+summary(MegaLMM_state)
+```
+
+Prediction Accuracy 
+
+```{r}
+MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+# should this be the whole data set or the Test set (the ones masked in to train)
+```
+
+
+# Working with postierior samples
+
+```{r}
+dim(MegaLMM_state$Posterior$Lambda)
+U = load_posterior_param(MegaLMM_state,'U_CV2')
+# reload all parameters
+MegaLMM_state$Posterior = reload_Posterior(MegaLMM_state)
+dim(MegaLMM_state$Posterior$Lambda)
+dim(MegaLMM_state$Posterior$F_h2)
+# traceplot to check convergence
+plot(U[,1,2],type='l')
+traceplot_array(MegaLMM_state$Posterior$Lambda,facet_dim = 2,name = 'Lambda')
+# summaries of the posterior samples
+U_hat = get_posterior_mean(U)
+dim(U_hat)
+# calculate lower and upper 0.95 Highest Posterior Density bounds for each element of the matrix `U`
+U_HPD = get_posterior_HPDinterval(U,prob = 0.95)
+dim(U_HPD)
+```
+
+```{r}
+# calculate functions of the parameters stored in the Posterior database
+P_samples = get_posterior_FUN(MegaLMM_state,t(Lambda) %*% Lambda + diag(1/tot_Eta_prec[1,]))
+dim(P_samples)
+```
+
+Extracting random effect covariances
+
+extract the estimates and posterior distributions on the key variance-covariance parameters $\mathbf{G}$ and $\mathbf{R}$. The model for the genetic covariance in MegaLMM is: $\mathbf{G} = \mathbf{\Lambda^T \Sigma_{h^2_F} \Lambda} + \mathbf{\Psi \otimes \Sigma_{h^2_R}}$
+
+```{r include=F}
+#G_samples = get_posterior_FUN(MegaLMM_state,
+#              t(Lambda) %*% diag(F_h2[1,]) %*% Lambda + diag(resid_h2[,1]/tot_Eta_prec[1,])
+#            )
+#dim(G_samples)
+```
+MegaLMM has functions to calculate these
+```{r}
+G_samples = load_posterior_param(MegaLMM_state,'G')
+R_samples = load_posterior_param(MegaLMM_state,'R')
+dim(G_samples)
+dim(R_samples)
+```
+
+```{r}
+rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy)
+```
+
+
+
+
+
+##########
+IL 2023
+
+```{r}
+# I can only get MegaLMM::create_data_matrices to run if there is one value for a oat-pea combo. if that exact combo had more than one plot, the function dosn't like it. So using the mean of any duplicated combinations
+yield_data3<-yield_data2%>%
+  filter(UniqEnv == "IL2024")%>%
+  dplyr::summarise(
+    oatYield = mean(oatYield, na.rm = TRUE),
+    .by = c(germplasmName, peaAcc))%>%
+  dplyr::select(peaAcc, germplasmName, oatYield)
+
+accNames <- yield_data3$germplasmName |> unique()
+nAcc <- accNames |> length() # 47
+trialNames <- yield_data3$peaAcc |> unique()
+nTrials <- trialNames |> length() # 12
+
+data_matrices <- MegaLMM::create_data_matrices(
+  tall_data = yield_data3, # your input tall data.frame,
+  id_cols = "germplasmName", # vector giving the set of columns of tall_data used to identify each individual, and any covariates you'll want to use to model the trait data across individuals.
+  names_from = 'peaAcc', # vector giving the set of columns of tall_data used to identify each trait 
+  values_from = 'oatYield' # name of the trait data column
+)
+sample_data <- data_matrices$data
+yldWide <- data_matrices$Y
+yldWide <- yldWide[, apply(yldWide, 2, 
+                           function(v) sum(is.na(v)) < 0.95 * nrow(yldWide))]
+
+```
+
+#### Set up results objects
+
+```{r Set up results objects}
+nCVfolds <- 6
+allLambdaPost <- NULL
+allCorr <- tibble()
+
+accNamesTib <- tibble(germplasmName=accNames)
+seed <- 6234
+set.seed(seed)
+runID <- paste0("IL2024_", seed) # Will make a folder with this name
+```
+
+#### Run cross validation -- CV2
+The idea here is, per trial, to leave N lines in the trial and predict the
+remaining lines.  This is a case where we are predicting old accessions in 
+old environments.
+```{r Run cross validation -- CV2, eval=FALSE}
+runID <- paste0("output/megaLMM/", runID, "CV2")
+# Some cross val in each trial
+#for (trialName in trialNames){
+testTrials <- sample(trialNames, 12)
+for (trialName in testTrials){
+  for (cvFold in 1:nCVfolds){
+    cat("####", which(testTrials == trialName), trialName, cvFold, "####", "\n")
+    yldTrain <- yldWide
+    yldTest <- yldWide
+    nAccInTrial <- sum(!is.na(yldTrain[, trialName]))
+    setMissing <- sample(nAccInTrial, size=nAccInTrial / 2 , replace=F)
+    yldTrain[!is.na(yldTrain[, trialName]), trialName][setMissing] <- NA
+    yldTest[which(!is.na(yldTest[, trialName]))[-setMissing], trialName] <- NA
+
+    
+    MegaLMM_state <- setupMegaLMMstate(accNames=accNamesTib, wideData=yldTrain,
+                                       kinMat=GRM2, runID=runID) # try different things here for wideData
+
+    # Burn in
+    n_iter <- 200
+    for (i in 1:6){
+      cat(i)
+      # Manually re-order from biggest to smallest
+      MegaLMM_state <- reorder_factors(MegaLMM_state, drop_cor_threshold = 0.6)
+      # Clear previous collected samples because we've re-started the chain 
+      MegaLMM_state <- clear_Posterior(MegaLMM_state)
+      # Draw n_iter new samples, storing the chain
+      MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+    }
+    cat("\n")
+    MegaLMM_state <- clear_Posterior(MegaLMM_state)
+    
+    # Sampling
+    n_iter = 2000
+    MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+    MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
+
+    Lambda_samples = load_posterior_param(MegaLMM_state,'Lambda')
+    Lambda_hat <- get_posterior_mean(Lambda_samples)
+    U_samples = load_posterior_param(MegaLMM_state,'U_CV2')
+    U_hat = get_posterior_mean(U_samples)
+    Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
+    
+    obsYld <- yldWide[!is.na(yldWide[, trialName]), trialName][setMissing]
+    predGen <- U_hat[!is.na(yldWide[, trialName]), trialName][setMissing]
+    predPhen <- Eta_mean[!is.na(yldWide[, trialName]), trialName][setMissing]
+    Uhat_accuracy <- cor(obsYld, predGen)
+    Eta_mean_accuracy <- cor(obsYld, predPhen)
+    
+    allLambdaPost <- rbind(allLambdaPost, Lambda_hat)
+    toAdd <- tibble(trial=trialName, accVec=list(names(obsYld)), 
+                    genAcc=Uhat_accuracy, phenAcc=Eta_mean_accuracy)
+    allCorr <- bind_rows(allCorr, toAdd)
+  }#END CV
+  saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
+          file=here::here("output", "megaLMM", paste0(seed, "IL2024_MegaLMMresultsCV2.rds")))
+}#END trial
+```
+
+summary of the MCMC chain 
+
+```{r}
+print(MegaLMM_state)
+summary(MegaLMM_state)
+```
+
+Prediction Accuracy 
+
+```{r}
+MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+# should this be the whole data set or the Test set (the ones masked in to train)
+```
+
+
+# Working with postierior samples
+
+```{r}
+dim(MegaLMM_state$Posterior$Lambda)
+U = load_posterior_param(MegaLMM_state,'U_CV2')
+# reload all parameters
+MegaLMM_state$Posterior = reload_Posterior(MegaLMM_state)
+dim(MegaLMM_state$Posterior$Lambda)
+dim(MegaLMM_state$Posterior$F_h2)
+# traceplot to check convergence
+plot(U[,1,2],type='l')
+traceplot_array(MegaLMM_state$Posterior$Lambda,facet_dim = 2,name = 'Lambda')
+# summaries of the posterior samples
+U_hat = get_posterior_mean(U)
+dim(U_hat)
+# calculate lower and upper 0.95 Highest Posterior Density bounds for each element of the matrix `U`
+U_HPD = get_posterior_HPDinterval(U,prob = 0.95)
+dim(U_HPD)
+```
+
+```{r}
+# calculate functions of the parameters stored in the Posterior database
+P_samples = get_posterior_FUN(MegaLMM_state,t(Lambda) %*% Lambda + diag(1/tot_Eta_prec[1,]))
+dim(P_samples)
+```
+
+Extracting random effect covariances
+
+extract the estimates and posterior distributions on the key variance-covariance parameters $\mathbf{G}$ and $\mathbf{R}$. The model for the genetic covariance in MegaLMM is: $\mathbf{G} = \mathbf{\Lambda^T \Sigma_{h^2_F} \Lambda} + \mathbf{\Psi \otimes \Sigma_{h^2_R}}$
+
+```{r include=F}
+#G_samples = get_posterior_FUN(MegaLMM_state,
+#              t(Lambda) %*% diag(F_h2[1,]) %*% Lambda + diag(resid_h2[,1]/tot_Eta_prec[1,])
+#            )
+#dim(G_samples)
+```
+MegaLMM has functions to calculate these
+```{r}
+G_samples = load_posterior_param(MegaLMM_state,'G')
+R_samples = load_posterior_param(MegaLMM_state,'R')
+dim(G_samples)
+dim(R_samples)
+```
+
+```{r}
+rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy)
+```
+
+
+
+
+
+##########
+SD 2023
+
+```{r}
+# I can only get MegaLMM::create_data_matrices to run if there is one value for a oat-pea combo. if that exact combo had more than one plot, the function dosn't like it. So using the mean of any duplicated combinations
+yield_data3<-yield_data2%>%
+  filter(UniqEnv == "SD2023")%>%
+  dplyr::summarise(
+    oatYield = mean(oatYield, na.rm = TRUE),
+    .by = c(germplasmName, peaAcc))%>%
+  dplyr::select(peaAcc, germplasmName, oatYield)
+
+accNames <- yield_data3$germplasmName |> unique()
+nAcc <- accNames |> length() # 47
+trialNames <- yield_data3$peaAcc |> unique()
+nTrials <- trialNames |> length() # 12
+
+data_matrices <- MegaLMM::create_data_matrices(
+  tall_data = yield_data3, # your input tall data.frame,
+  id_cols = "germplasmName", # vector giving the set of columns of tall_data used to identify each individual, and any covariates you'll want to use to model the trait data across individuals.
+  names_from = 'peaAcc', # vector giving the set of columns of tall_data used to identify each trait 
+  values_from = 'oatYield' # name of the trait data column
+)
+sample_data <- data_matrices$data
+yldWide <- data_matrices$Y
+yldWide <- yldWide[, apply(yldWide, 2, 
+                           function(v) sum(is.na(v)) < 0.95 * nrow(yldWide))]
+
+```
+
+#### Set up results objects
+
+```{r Set up results objects}
+nCVfolds <- 6
+allLambdaPost <- NULL
+allCorr <- tibble()
+
+accNamesTib <- tibble(germplasmName=accNames)
+seed <- 6234
+set.seed(seed)
+runID <- paste0("SD2023_", seed) # Will make a folder with this name
+```
+
+#### Run cross validation -- CV2
+The idea here is, per trial, to leave N lines in the trial and predict the
+remaining lines.  This is a case where we are predicting old accessions in 
+old environments.
+```{r Run cross validation -- CV2, eval=FALSE}
+runID <- paste0("output/megaLMM/", runID, "CV2")
+# Some cross val in each trial
+#for (trialName in trialNames){
+testTrials <- sample(trialNames, 12)
+for (trialName in testTrials){
+  for (cvFold in 1:nCVfolds){
+    cat("####", which(testTrials == trialName), trialName, cvFold, "####", "\n")
+    yldTrain <- yldWide
+    yldTest <- yldWide
+    nAccInTrial <- sum(!is.na(yldTrain[, trialName]))
+    setMissing <- sample(nAccInTrial, size=nAccInTrial / 2 , replace=F)
+    yldTrain[!is.na(yldTrain[, trialName]), trialName][setMissing] <- NA
+    yldTest[which(!is.na(yldTest[, trialName]))[-setMissing], trialName] <- NA
+
+    
+    MegaLMM_state <- setupMegaLMMstate(accNames=accNamesTib, wideData=yldTrain,
+                                       kinMat=GRM2, runID=runID) # try different things here for wideData
+
+    # Burn in
+    n_iter <- 200
+    for (i in 1:6){
+      cat(i)
+      # Manually re-order from biggest to smallest
+      MegaLMM_state <- reorder_factors(MegaLMM_state, drop_cor_threshold = 0.6)
+      # Clear previous collected samples because we've re-started the chain 
+      MegaLMM_state <- clear_Posterior(MegaLMM_state)
+      # Draw n_iter new samples, storing the chain
+      MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+    }
+    cat("\n")
+    MegaLMM_state <- clear_Posterior(MegaLMM_state)
+    
+    # Sampling
+    n_iter = 2000
+    MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+    MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
+
+    Lambda_samples = load_posterior_param(MegaLMM_state,'Lambda')
+    Lambda_hat <- get_posterior_mean(Lambda_samples)
+    U_samples = load_posterior_param(MegaLMM_state,'U_CV2')
+    U_hat = get_posterior_mean(U_samples)
+    Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
+    
+    obsYld <- yldWide[!is.na(yldWide[, trialName]), trialName][setMissing]
+    predGen <- U_hat[!is.na(yldWide[, trialName]), trialName][setMissing]
+    predPhen <- Eta_mean[!is.na(yldWide[, trialName]), trialName][setMissing]
+    Uhat_accuracy <- cor(obsYld, predGen)
+    Eta_mean_accuracy <- cor(obsYld, predPhen)
+    
+    allLambdaPost <- rbind(allLambdaPost, Lambda_hat)
+    toAdd <- tibble(trial=trialName, accVec=list(names(obsYld)), 
+                    genAcc=Uhat_accuracy, phenAcc=Eta_mean_accuracy)
+    allCorr <- bind_rows(allCorr, toAdd)
+  }#END CV
+  saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
+          file=here::here("output", "megaLMM", paste0(seed, "SD2023_MegaLMMresultsCV2.rds")))
+}#END trial
+```
+
+summary of the MCMC chain 
+
+```{r}
+print(MegaLMM_state)
+summary(MegaLMM_state)
+```
+
+Prediction Accuracy 
+
+```{r}
+MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+# should this be the whole data set or the Test set (the ones masked in to train)
+```
+
+
+# Working with postierior samples
+
+```{r}
+dim(MegaLMM_state$Posterior$Lambda)
+U = load_posterior_param(MegaLMM_state,'U_CV2')
+# reload all parameters
+MegaLMM_state$Posterior = reload_Posterior(MegaLMM_state)
+dim(MegaLMM_state$Posterior$Lambda)
+dim(MegaLMM_state$Posterior$F_h2)
+# traceplot to check convergence
+plot(U[,1,2],type='l')
+traceplot_array(MegaLMM_state$Posterior$Lambda,facet_dim = 2,name = 'Lambda')
+# summaries of the posterior samples
+U_hat = get_posterior_mean(U)
+dim(U_hat)
+# calculate lower and upper 0.95 Highest Posterior Density bounds for each element of the matrix `U`
+U_HPD = get_posterior_HPDinterval(U,prob = 0.95)
+dim(U_HPD)
+```
+
+```{r}
+# calculate functions of the parameters stored in the Posterior database
+P_samples = get_posterior_FUN(MegaLMM_state,t(Lambda) %*% Lambda + diag(1/tot_Eta_prec[1,]))
+dim(P_samples)
+```
+
+Extracting random effect covariances
+
+extract the estimates and posterior distributions on the key variance-covariance parameters $\mathbf{G}$ and $\mathbf{R}$. The model for the genetic covariance in MegaLMM is: $\mathbf{G} = \mathbf{\Lambda^T \Sigma_{h^2_F} \Lambda} + \mathbf{\Psi \otimes \Sigma_{h^2_R}}$
+
+```{r include=F}
+#G_samples = get_posterior_FUN(MegaLMM_state,
+#              t(Lambda) %*% diag(F_h2[1,]) %*% Lambda + diag(resid_h2[,1]/tot_Eta_prec[1,])
+#            )
+#dim(G_samples)
+```
+MegaLMM has functions to calculate these
+```{r}
+G_samples = load_posterior_param(MegaLMM_state,'G')
+R_samples = load_posterior_param(MegaLMM_state,'R')
+dim(G_samples)
+dim(R_samples)
+```
+
+```{r}
+rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy)
+```
+
+
+
+
+
+##########
+SD 2024
+
+```{r}
+# I can only get MegaLMM::create_data_matrices to run if there is one value for a oat-pea combo. if that exact combo had more than one plot, the function dosn't like it. So using the mean of any duplicated combinations
+yield_data3<-yield_data2%>%
+  filter(UniqEnv == "SD2024")%>%
+  dplyr::summarise(
+    oatYield = mean(oatYield, na.rm = TRUE),
+    .by = c(germplasmName, peaAcc))%>%
+  dplyr::select(peaAcc, germplasmName, oatYield)
+
+accNames <- yield_data3$germplasmName |> unique()
+nAcc <- accNames |> length() # 47
+trialNames <- yield_data3$peaAcc |> unique()
+nTrials <- trialNames |> length() # 12
+
+data_matrices <- MegaLMM::create_data_matrices(
+  tall_data = yield_data3, # your input tall data.frame,
+  id_cols = "germplasmName", # vector giving the set of columns of tall_data used to identify each individual, and any covariates you'll want to use to model the trait data across individuals.
+  names_from = 'peaAcc', # vector giving the set of columns of tall_data used to identify each trait 
+  values_from = 'oatYield' # name of the trait data column
+)
+sample_data <- data_matrices$data
+yldWide <- data_matrices$Y
+yldWide <- yldWide[, apply(yldWide, 2, 
+                           function(v) sum(is.na(v)) < 0.95 * nrow(yldWide))]
+
+```
+
+#### Set up results objects
+
+```{r Set up results objects}
+nCVfolds <- 6
+allLambdaPost <- NULL
+allCorr <- tibble()
+
+accNamesTib <- tibble(germplasmName=accNames)
+seed <- 6234
+set.seed(seed)
+runID <- paste0("SD2024_", seed) # Will make a folder with this name
+```
+
+#### Run cross validation -- CV2
+The idea here is, per trial, to leave N lines in the trial and predict the
+remaining lines.  This is a case where we are predicting old accessions in 
+old environments.
+```{r Run cross validation -- CV2, eval=FALSE}
+runID <- paste0("output/megaLMM/", runID, "CV2")
+# Some cross val in each trial
+#for (trialName in trialNames){
+testTrials <- sample(trialNames, 12)
+for (trialName in testTrials){
+  for (cvFold in 1:nCVfolds){
+    cat("####", which(testTrials == trialName), trialName, cvFold, "####", "\n")
+    yldTrain <- yldWide
+    yldTest <- yldWide
+    nAccInTrial <- sum(!is.na(yldTrain[, trialName]))
+    setMissing <- sample(nAccInTrial, size=nAccInTrial / 2 , replace=F)
+    yldTrain[!is.na(yldTrain[, trialName]), trialName][setMissing] <- NA
+    yldTest[which(!is.na(yldTest[, trialName]))[-setMissing], trialName] <- NA
+
+    
+    MegaLMM_state <- setupMegaLMMstate(accNames=accNamesTib, wideData=yldTrain,
+                                       kinMat=GRM2, runID=runID) # try different things here for wideData
+
+    # Burn in
+    n_iter <- 200
+    for (i in 1:6){
+      cat(i)
+      # Manually re-order from biggest to smallest
+      MegaLMM_state <- reorder_factors(MegaLMM_state, drop_cor_threshold = 0.6)
+      # Clear previous collected samples because we've re-started the chain 
+      MegaLMM_state <- clear_Posterior(MegaLMM_state)
+      # Draw n_iter new samples, storing the chain
+      MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+    }
+    cat("\n")
+    MegaLMM_state <- clear_Posterior(MegaLMM_state)
+    
+    # Sampling
+    n_iter = 2000
+    MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+    MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
+
+    Lambda_samples = load_posterior_param(MegaLMM_state,'Lambda')
+    Lambda_hat <- get_posterior_mean(Lambda_samples)
+    U_samples = load_posterior_param(MegaLMM_state,'U_CV2')
+    U_hat = get_posterior_mean(U_samples)
+    Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
+    
+    obsYld <- yldWide[!is.na(yldWide[, trialName]), trialName][setMissing]
+    predGen <- U_hat[!is.na(yldWide[, trialName]), trialName][setMissing]
+    predPhen <- Eta_mean[!is.na(yldWide[, trialName]), trialName][setMissing]
+    Uhat_accuracy <- cor(obsYld, predGen)
+    Eta_mean_accuracy <- cor(obsYld, predPhen)
+    
+    allLambdaPost <- rbind(allLambdaPost, Lambda_hat)
+    toAdd <- tibble(trial=trialName, accVec=list(names(obsYld)), 
+                    genAcc=Uhat_accuracy, phenAcc=Eta_mean_accuracy)
+    allCorr <- bind_rows(allCorr, toAdd)
+  }#END CV
+  saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
+          file=here::here("output", "megaLMM", paste0(seed, "SD2024_MegaLMMresultsCV2.rds")))
+}#END trial
+```
+
+summary of the MCMC chain 
+
+```{r}
+print(MegaLMM_state)
+summary(MegaLMM_state)
+```
+
+Prediction Accuracy 
+
+```{r}
+MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+# should this be the whole data set or the Test set (the ones masked in to train)
+```
+
+
+# Working with postierior samples
+
+```{r}
+dim(MegaLMM_state$Posterior$Lambda)
+U = load_posterior_param(MegaLMM_state,'U_CV2')
+# reload all parameters
+MegaLMM_state$Posterior = reload_Posterior(MegaLMM_state)
+dim(MegaLMM_state$Posterior$Lambda)
+dim(MegaLMM_state$Posterior$F_h2)
+# traceplot to check convergence
+plot(U[,1,2],type='l')
+traceplot_array(MegaLMM_state$Posterior$Lambda,facet_dim = 2,name = 'Lambda')
+# summaries of the posterior samples
+U_hat = get_posterior_mean(U)
+dim(U_hat)
+# calculate lower and upper 0.95 Highest Posterior Density bounds for each element of the matrix `U`
+U_HPD = get_posterior_HPDinterval(U,prob = 0.95)
+dim(U_HPD)
+```
+
+```{r}
+# calculate functions of the parameters stored in the Posterior database
+P_samples = get_posterior_FUN(MegaLMM_state,t(Lambda) %*% Lambda + diag(1/tot_Eta_prec[1,]))
+dim(P_samples)
+```
+
+Extracting random effect covariances
+
+extract the estimates and posterior distributions on the key variance-covariance parameters $\mathbf{G}$ and $\mathbf{R}$. The model for the genetic covariance in MegaLMM is: $\mathbf{G} = \mathbf{\Lambda^T \Sigma_{h^2_F} \Lambda} + \mathbf{\Psi \otimes \Sigma_{h^2_R}}$
+
+```{r include=F}
+#G_samples = get_posterior_FUN(MegaLMM_state,
+#              t(Lambda) %*% diag(F_h2[1,]) %*% Lambda + diag(resid_h2[,1]/tot_Eta_prec[1,])
+#            )
+#dim(G_samples)
+```
+MegaLMM has functions to calculate these
+```{r}
+G_samples = load_posterior_param(MegaLMM_state,'G')
+R_samples = load_posterior_param(MegaLMM_state,'R')
+dim(G_samples)
+dim(R_samples)
+```
+
+```{r}
+rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy)
+```
