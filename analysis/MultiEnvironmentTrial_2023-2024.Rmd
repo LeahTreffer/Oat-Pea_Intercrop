@@ -1,10 +1,11 @@
 ---
-title: "MultiEnvironmentTrial_oat"
+title: "MultiEnvironmentTrial 2023-2024"
 author: "Leah Treffer"
 date: "2026-01-24"
 output: html_document
 ---
 
+megaLMM of each location individually 2023-2024
 
 ```{r libraries, include=FALSE}
 library(here)
@@ -31,7 +32,7 @@ library(MegaLMM)
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-here::i_am("analysis/MultiEnvironmentTrial_oat.Rmd")
+here::i_am("analysis/MultiEnvironmentTrial_2023-2024.Rmd")
 ```
 
 ```{r data}
@@ -126,7 +127,7 @@ Image(as.matrix(table(yield_data2$germplasmName,yield_data2$UniqEnv))) + theme(l
 # Unique year, location, pea ID
 Image(as.matrix(table(yield_data2$germplasmName,yield_data2$UniqEnv_pea))) + theme(legend.position = 'none') + xlab('Environment') + ylab('germplasmName')
 # Unique year, pea ID
-Image(as.matrix(table(yield_data2$germplasmName,yield_data2$peaAcc))) + theme(legend.position = 'none') + xlab('Environment') + ylab('germplasmName')
+Image(as.matrix(table(yield_data2$germplasmName,yield_data2$peaAcc))) + theme(legend.position = 'none') + xlab('Environment') + ylab('germplasmName') # all locations
 ```
 
 ```{r}
@@ -203,6 +204,7 @@ all(rownames(GRM2) %in% sample_data2$germplasmName)
 GRM2 = GRM2[sample_data2$germplasmName,sample_data2$germplasmName]
 ```
 
+
 # Set up Cross Validation
 
 The goal of genomic prediction is to accurately predict the genetic values of individuals that are not observed in a particular environment. The standard way to estimate this accuracy is to mask a portion of the lines in the input data, use a model to predict these masked values, and then measure the correlation between the predicted values and the original data. In this tutorial we will do only 1 round of a k-fold cross-validation. Generally you would repeat this with other training / testing partition.
@@ -215,24 +217,8 @@ Because the individuals are stratified between two populations, we will ensure a
 2.  For the observed individuals in that population, divide them into k-folds
 3.  Create a matrix with the testing sets (fold_ID) for each observation
 
-Not not worry about understanding this code! The call to `set.seed()` at the beginning makes it repeatable.
 
-```{r}
-#set.seed(1)
-#k_fold = 5 # we will hold out 1/5 = 20% of the observations from each environment
-#fold_ID_matrix = matrix(NA,nrow = nrow(Y),ncol = ncol(Y),dimnames = dimnames(Y))
-#for(i in 1:ncol(fold_ID_matrix)) {
-#  observed_lines = sample_data[!is.na(Y[,i]),]
-#  pop = names(sort(table(observed_lines$Population),decreasing=T))[1]
-#  observed_lines = subset(observed_lines,Population == pop)
-#  n_lines = nrow(observed_lines)
-#  observed_lines$fold = sample(rep(1:k_fold,(n_lines/k_fold)+1))[1:n_lines]
-#  fold_ID_matrix[match(observed_lines$Line,rownames(fold_ID_matrix)),i] = observed_lines$fold
-#}
-```
-
-
-# from JL : ~/DSFAS_Recommending/analysis/WashingtonSoftSpringWheatTrials.Rmd
+# large parts of the pipeline from JL : ~/DSFAS_Recommending/analysis/WashingtonSoftSpringWheatTrials.Rmd
 
 ##########
 NY 2023
@@ -242,6 +228,10 @@ yield_data3<-yield_data2%>%
   filter(UniqEnv == "NY2023")%>%
   dplyr::select(peaAcc, germplasmName, oatYield)
 
+Image(as.matrix(table(yield_data3$germplasmName,yield_data3$peaAcc))) + theme(legend.position = 'none') + xlab('Environment') + ylab('germplasmName')
+```
+
+```{r}
 accNames <- yield_data3$germplasmName |> unique()
 nAcc <- accNames |> length() # 47
 trialNames <- yield_data3$peaAcc |> unique()
@@ -258,6 +248,10 @@ yldWide <- data_matrices$Y
 yldWide <- yldWide[, apply(yldWide, 2, 
                            function(v) sum(is.na(v)) < 0.95 * nrow(yldWide))]
 
+# make sure data and GRM match
+all(rownames(GRM2) %in% sample_data$germplasmName)
+GRM = GRM2[sample_data$germplasmName,sample_data$germplasmName] # fit GRM based on oats in the data
+all(rownames(GRM) %in% sample_data$germplasmName)
 ```
 
 #### Set up results objects
@@ -278,7 +272,7 @@ The idea here is, per trial, to leave N lines in the trial and predict the
 remaining lines.  This is a case where we are predicting old accessions in 
 old environments.
 ```{r Run cross validation -- CV2, eval=FALSE}
-runID <- paste0("output/megaLMM/", runID, "CV2")
+runID <- paste0("output/megaLMM/individualLOC_2023-2024/", runID, "CV2")
 # Some cross val in each trial
 #for (trialName in trialNames){
 testTrials <- sample(trialNames, 12)
@@ -292,9 +286,8 @@ for (trialName in testTrials){
     yldTrain[!is.na(yldTrain[, trialName]), trialName][setMissing] <- NA
     yldTest[which(!is.na(yldTest[, trialName]))[-setMissing], trialName] <- NA
 
-    
     MegaLMM_state <- setupMegaLMMstate(accNames=accNamesTib, wideData=yldTrain,
-                                       kinMat=GRM2, runID=runID) # try different things here for wideData
+                                       kinMat=GRM, runID=runID) # try different things here for wideData
 
     # Burn in
     n_iter <- 200
@@ -314,6 +307,7 @@ for (trialName in testTrials){
     n_iter = 2000
     MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
     MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
+    saveRDS(MegaLMM_state, file = here::here("output", "megaLMM", "individualLOC_2023-2024", paste0(seed, "NY2023_MegaLMM_state.rds")))
 
     Lambda_samples = load_posterior_param(MegaLMM_state,'Lambda')
     Lambda_hat <- get_posterior_mean(Lambda_samples)
@@ -333,8 +327,12 @@ for (trialName in testTrials){
     allCorr <- bind_rows(allCorr, toAdd)
   }#END CV
   saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
-          file=here::here("output", "megaLMM", paste0(seed, "NY2023_MegaLMMresultsCV2.rds")))
+          file=here::here("output", "megaLMM", "individualLOC_2023-2024", paste0(seed, "NY2023_MegaLMMresultsCV2.rds")))
 }#END trial
+# save files used in posterior eval
+saveRDS(yldTest, file = here::here(runID, "Y_testing.rds"))
+saveRDS(yldTrain, file = here::here(runID, "Y_training.rds"))
+saveRDS(yldWide, file = here::here(runID, "pheno_input.rds"))
 ```
 
 summary of the MCMC chain 
@@ -344,14 +342,38 @@ print(MegaLMM_state)
 summary(MegaLMM_state)
 ```
 
-Prediction Accuracy 
+# Run univariate GBLUP as reference
+
+To evaluate whether the multi-trait prediction from `MegaLMM` is useful, we'll run normal univariate genomic prediction using the GBLUP model using the `rrBLUP` package.
 
 ```{r}
-MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
-MegaLMM_Uhat_accuracy
-MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
-MegaLMM_Uhat_accuracy
-# should this be the whole data set or the Test set (the ones masked in to train)
+rrBLUP_predictions = matrix(NA,nrow(yldWide),ncol(yldWide),dimnames = dimnames(yldWide)) # 12 col, 46 rows
+for(i in 1:ncol(yldWide)) {
+  X = model.matrix(~1,sample_data) # could include covariates in place of the 1, if it is variable among the individuals for this environment
+  #if(var(X[!is.na(yldTrain[,i]),2]) == 0) X = X[,-2,drop=FALSE] # use this is covariate is in column 2
+  res = mixed.solve(y = yldTrain[,i],
+                                       X = X,
+                                       K = GRM)
+  rrBLUP_predictions[,i] = c(X %*% res$beta) + res$u
+  saveRDS(rrBLUP_predictions, file=here::here("output", "megaLMM", "individualLOCgBLUP_2023-2024", paste0(seed, "NY2023_rrBLUPresultsCV2.rds")))
+}
+```
+
+Reload if coming back 
+
+```{r}
+# MegaLMM_state = readRDS(here::here('output', 'megaLMM', 'individualLOC_2023-2024', '6234NY2023_MegaLMM_state.rds'))
+# rrBLUP_predictions = readRDS(here::here('output', 'megaLMM', 'individualLOCgBLUP_2023-2024', '6234NY2023_rrBLUPresultsCV2.rds'))
+
+# yldTest <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "NY2023_6234CV2", "Y_testing.rds"))
+# yldTrain <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "NY2023_6234CV2", "Y_training.rds"))
+# yldWide <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "NY2023_6234CV2", "pheno_input.rds"))
+```
+
+Here are the correlations between the rBLUP predictions and the testing data:
+
+```{r}
+diag(cor(yldTest,rrBLUP_predictions,use='p'))
 ```
 
 # Working with postierior samples
@@ -372,6 +394,15 @@ dim(U_hat)
 # calculate lower and upper 0.95 Highest Posterior Density bounds for each element of the matrix `U`
 U_HPD = get_posterior_HPDinterval(U,prob = 0.95)
 dim(U_HPD)
+```
+
+```{r}
+Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
+
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
+MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
+hist(MegaLMM_Uhat_accuracy)
+hist(MegaLMM_Eta_mean_accuracy)
 ```
 
 ```{r}
@@ -398,8 +429,31 @@ dim(G_samples)
 dim(R_samples)
 ```
 
+Prediction Accuracy 
+
 ```{r}
-rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy)
+MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+# should this be the whole data set or the Test set (the ones masked in to train)
+```
+
+# Estimate Genomic Prediction accuracy
+
+Let's compare the accuracy of `MegaLMM's` predictions (`U_hat` or `Eta_mean`) to those of `rrBLUP`:
+
+```{r}
+rrBLUP_accuracy = diag(cor(yldTest,rrBLUP_predictions,use='p'))
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
+MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
+plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1)
+plot(rrBLUP_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
+plot(MegaLMM_Uhat_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
+```
+
+```{r}
+rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy, rrBLUP_predictions, rrBLUP_accuracy, GRM, allLambdaPost, Eta_mean, Lambda_hat, res, X, Y2, cvFold, Eta_mean_accuracy, i, Lambda_samples, MegaLMM_Eta_mean_accuracy, n_iter, nAccInTrial, nCVfolds, obsYld, predGen, predPhen, setMissing, trialName)
 ```
 
 
@@ -435,6 +489,10 @@ yldWide <- data_matrices$Y
 yldWide <- yldWide[, apply(yldWide, 2, 
                            function(v) sum(is.na(v)) < 0.95 * nrow(yldWide))]
 
+# make sure data and GRM match
+all(rownames(GRM2) %in% sample_data$germplasmName)
+GRM = GRM2[sample_data$germplasmName,sample_data$germplasmName] # fit GRM based on oats in the data
+all(rownames(GRM) %in% sample_data$germplasmName)
 ```
 
 #### Set up results objects
@@ -455,7 +513,7 @@ The idea here is, per trial, to leave N lines in the trial and predict the
 remaining lines.  This is a case where we are predicting old accessions in 
 old environments.
 ```{r Run cross validation -- CV2, eval=FALSE}
-runID <- paste0("output/megaLMM/", runID, "CV2")
+runID <- paste0("output/megaLMM/individualLOC_2023-2024/", runID, "CV2")
 # Some cross val in each trial
 #for (trialName in trialNames){
 testTrials <- sample(trialNames, 12)
@@ -491,7 +549,8 @@ for (trialName in testTrials){
     n_iter = 2000
     MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
     MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
-
+    saveRDS(MegaLMM_state, file = here::here("output", "megaLMM", "individualLOC_2023-2024", paste0(seed, "NY2024_MegaLMM_state.rds")))
+    
     Lambda_samples = load_posterior_param(MegaLMM_state,'Lambda')
     Lambda_hat <- get_posterior_mean(Lambda_samples)
     U_samples = load_posterior_param(MegaLMM_state,'U_CV2')
@@ -510,8 +569,12 @@ for (trialName in testTrials){
     allCorr <- bind_rows(allCorr, toAdd)
   }#END CV
   saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
-          file=here::here("output", "megaLMM", paste0(seed, "NY2024_MegaLMMresultsCV2.rds")))
+          file=here::here("output", "megaLMM", "individualLOC_2023-2024", paste0(seed, "NY2024_MegaLMMresultsCV2.rds")))
 }#END trial
+# save files used in posterior eval
+saveRDS(yldTest, file = here::here(runID, "Y_testing.rds"))
+saveRDS(yldTrain, file = here::here(runID, "Y_training.rds"))
+saveRDS(yldWide, file = here::here(runID, "pheno_input.rds"))
 ```
 
 summary of the MCMC chain 
@@ -521,16 +584,22 @@ print(MegaLMM_state)
 summary(MegaLMM_state)
 ```
 
-Prediction Accuracy 
+Reload if coming back 
 
 ```{r}
-MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
-MegaLMM_Uhat_accuracy
-MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
-MegaLMM_Uhat_accuracy
-# should this be the whole data set or the Test set (the ones masked in to train)
+# MegaLMM_state = readRDS(here::here('output', 'megaLMM', 'individualLOC_2023-2024', '6234NY2024_MegaLMM_state.rds'))
+# rrBLUP_predictions = readRDS(here::here('output', 'megaLMM', 'individualLOCgBLUP_2023-2024', '6234NY2024_rrBLUPresultsCV2.rds'))
+
+# yldTest <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "NY2024_6234CV2", "Y_testing.rds"))
+# yldTrain <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "NY2024_6234CV2", "Y_training.rds"))
+# yldWide <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "NY2024_6234CV2", "pheno_input.rds"))
 ```
 
+Here are the correlations between the rBLUP predictions and the testing data:
+
+```{r}
+diag(cor(yldTest,rrBLUP_predictions,use='p'))
+```
 
 # Working with postierior samples
 
@@ -550,6 +619,15 @@ dim(U_hat)
 # calculate lower and upper 0.95 Highest Posterior Density bounds for each element of the matrix `U`
 U_HPD = get_posterior_HPDinterval(U,prob = 0.95)
 dim(U_HPD)
+```
+
+```{r}
+Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
+
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
+MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
+hist(MegaLMM_Uhat_accuracy)
+hist(MegaLMM_Eta_mean_accuracy)
 ```
 
 ```{r}
@@ -576,8 +654,18 @@ dim(G_samples)
 dim(R_samples)
 ```
 
+Prediction Accuracy 
+
 ```{r}
-rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy)
+MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+# should this be the whole data set or the Test set (the ones masked in to train)
+```
+
+```{r}
+rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy, rrBLUP_predictions, rrBLUP_accuracy, GRM, allLambdaPost, Eta_mean, Lambda_hat, res, X, Y2, cvFold, Eta_mean_accuracy, i, Lambda_samples, MegaLMM_Eta_mean_accuracy, n_iter, nAccInTrial, nCVfolds, obsYld, predGen, predPhen, setMissing, trialName)
 ```
 
 
@@ -610,7 +698,10 @@ sample_data <- data_matrices$data
 yldWide <- data_matrices$Y
 yldWide <- yldWide[, apply(yldWide, 2, 
                            function(v) sum(is.na(v)) < 0.95 * nrow(yldWide))]
-
+# make sure data and GRM match
+all(rownames(GRM2) %in% sample_data$germplasmName)
+GRM = GRM2[sample_data$germplasmName,sample_data$germplasmName] # fit GRM based on oats in the data
+all(rownames(GRM) %in% sample_data$germplasmName)
 ```
 
 #### Set up results objects
@@ -631,7 +722,7 @@ The idea here is, per trial, to leave N lines in the trial and predict the
 remaining lines.  This is a case where we are predicting old accessions in 
 old environments.
 ```{r Run cross validation -- CV2, eval=FALSE}
-runID <- paste0("output/megaLMM/", runID, "CV2")
+runID <- paste0("output/megaLMM/individualLOC_2023-2024/", runID, "CV2")
 # Some cross val in each trial
 #for (trialName in trialNames){
 testTrials <- sample(trialNames, 12)
@@ -645,9 +736,8 @@ for (trialName in testTrials){
     yldTrain[!is.na(yldTrain[, trialName]), trialName][setMissing] <- NA
     yldTest[which(!is.na(yldTest[, trialName]))[-setMissing], trialName] <- NA
 
-    
     MegaLMM_state <- setupMegaLMMstate(accNames=accNamesTib, wideData=yldTrain,
-                                       kinMat=GRM2, runID=runID) # try different things here for wideData
+                                       kinMat=GRM, runID=runID) # try different things here for wideData
 
     # Burn in
     n_iter <- 200
@@ -667,6 +757,7 @@ for (trialName in testTrials){
     n_iter = 2000
     MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
     MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
+    saveRDS(MegaLMM_state, file = here::here("output", "megaLMM", "individualLOC_2023-2024", paste0(seed, "IL2023_MegaLMM_state.rds")))
 
     Lambda_samples = load_posterior_param(MegaLMM_state,'Lambda')
     Lambda_hat <- get_posterior_mean(Lambda_samples)
@@ -686,8 +777,12 @@ for (trialName in testTrials){
     allCorr <- bind_rows(allCorr, toAdd)
   }#END CV
   saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
-          file=here::here("output", "megaLMM", paste0(seed, "IL2023_MegaLMMresultsCV2.rds")))
+          file=here::here("output", "megaLMM", "individualLOC_2023-2024", paste0(seed, "IL2023_MegaLMMresultsCV2.rds")))
 }#END trial
+# save files used in posterior eval
+saveRDS(yldTest, file = here::here(runID, "Y_testing.rds"))
+saveRDS(yldTrain, file = here::here(runID, "Y_training.rds"))
+saveRDS(yldWide, file = here::here(runID, "pheno_input.rds"))
 ```
 
 summary of the MCMC chain 
@@ -697,16 +792,39 @@ print(MegaLMM_state)
 summary(MegaLMM_state)
 ```
 
-Prediction Accuracy 
+# Run univariate GBLUP as reference
+
+To evaluate whether the multi-trait prediction from `MegaLMM` is useful, we'll run normal univariate genomic prediction using the GBLUP model using the `rrBLUP` package.
 
 ```{r}
-MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
-MegaLMM_Uhat_accuracy
-MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
-MegaLMM_Uhat_accuracy
-# should this be the whole data set or the Test set (the ones masked in to train)
+rrBLUP_predictions = matrix(NA,nrow(yldWide),ncol(yldWide),dimnames = dimnames(yldWide)) # 12 col, 46 rows
+for(i in 1:ncol(yldWide)) {
+  X = model.matrix(~1,sample_data) # could include covariates in place of the 1, if it is variable among the individuals for this environment
+  #if(var(X[!is.na(yldTrain[,i]),2]) == 0) X = X[,-2,drop=FALSE] # use this is covariate is in column 2
+  res = mixed.solve(y = yldTrain[,i],
+                                       X = X,
+                                       K = GRM)
+  rrBLUP_predictions[,i] = c(X %*% res$beta) + res$u
+  saveRDS(rrBLUP_predictions, file=here::here("output", "megaLMM", "individualLOCgBLUP_2023-2024", paste0(seed, "IL2023_rrBLUPresultsCV2.rds")))
+}
 ```
 
+Reload if coming back 
+
+```{r}
+# MegaLMM_state = readRDS(here::here('output', 'megaLMM', 'individualLOC_2023-2024', '6234IL2023_MegaLMM_state.rds'))
+# rrBLUP_predictions = readRDS(here::here('output', 'megaLMM', 'individualLOCgBLUP_2023-2024', '6234IL2023_rrBLUPresultsCV2.rds'))
+
+# yldTest <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "IL2023_6234CV2", "Y_testing.rds"))
+# yldTrain <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "IL2023_6234CV2", "Y_training.rds"))
+# yldWide <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "IL2023_6234CV2", "pheno_input.rds"))
+```
+
+Here are the correlations between the rBLUP predictions and the testing data:
+
+```{r}
+diag(cor(yldTest,rrBLUP_predictions,use='p'))
+```
 
 # Working with postierior samples
 
@@ -726,6 +844,15 @@ dim(U_hat)
 # calculate lower and upper 0.95 Highest Posterior Density bounds for each element of the matrix `U`
 U_HPD = get_posterior_HPDinterval(U,prob = 0.95)
 dim(U_HPD)
+```
+
+```{r}
+Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
+
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
+MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
+hist(MegaLMM_Uhat_accuracy)
+hist(MegaLMM_Eta_mean_accuracy)
 ```
 
 ```{r}
@@ -752,16 +879,38 @@ dim(G_samples)
 dim(R_samples)
 ```
 
+Prediction Accuracy 
+
 ```{r}
-rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy)
+MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+# should this be the whole data set or the Test set (the ones masked in to train)
+```
+
+# Estimate Genomic Prediction accuracy
+
+Let's compare the accuracy of `MegaLMM's` predictions (`U_hat` or `Eta_mean`) to those of `rrBLUP`:
+
+```{r}
+rrBLUP_accuracy = diag(cor(yldTest,rrBLUP_predictions,use='p'))
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
+MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
+plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1)
+plot(rrBLUP_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
+plot(MegaLMM_Uhat_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
+```
+
+```{r}
+rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy, rrBLUP_predictions, rrBLUP_accuracy, GRM, allLambdaPost, Eta_mean, Lambda_hat, res, X, Y2, cvFold, Eta_mean_accuracy, i, Lambda_samples, MegaLMM_Eta_mean_accuracy, n_iter, nAccInTrial, nCVfolds, obsYld, predGen, predPhen, setMissing, trialName)
 ```
 
 
 
 
-
 ##########
-IL 2023
+IL 2024
 
 ```{r}
 # I can only get MegaLMM::create_data_matrices to run if there is one value for a oat-pea combo. if that exact combo had more than one plot, the function dosn't like it. So using the mean of any duplicated combinations
@@ -787,7 +936,10 @@ sample_data <- data_matrices$data
 yldWide <- data_matrices$Y
 yldWide <- yldWide[, apply(yldWide, 2, 
                            function(v) sum(is.na(v)) < 0.95 * nrow(yldWide))]
-
+# make sure data and GRM match
+all(rownames(GRM2) %in% sample_data$germplasmName)
+GRM = GRM2[sample_data$germplasmName,sample_data$germplasmName] # fit GRM based on oats in the data
+all(rownames(GRM) %in% sample_data$germplasmName)
 ```
 
 #### Set up results objects
@@ -808,7 +960,7 @@ The idea here is, per trial, to leave N lines in the trial and predict the
 remaining lines.  This is a case where we are predicting old accessions in 
 old environments.
 ```{r Run cross validation -- CV2, eval=FALSE}
-runID <- paste0("output/megaLMM/", runID, "CV2")
+runID <- paste0("output/megaLMM/individualLOC_2023-2024/", runID, "CV2")
 # Some cross val in each trial
 #for (trialName in trialNames){
 testTrials <- sample(trialNames, 12)
@@ -822,9 +974,8 @@ for (trialName in testTrials){
     yldTrain[!is.na(yldTrain[, trialName]), trialName][setMissing] <- NA
     yldTest[which(!is.na(yldTest[, trialName]))[-setMissing], trialName] <- NA
 
-    
     MegaLMM_state <- setupMegaLMMstate(accNames=accNamesTib, wideData=yldTrain,
-                                       kinMat=GRM2, runID=runID) # try different things here for wideData
+                                       kinMat=GRM, runID=runID) # try different things here for wideData
 
     # Burn in
     n_iter <- 200
@@ -844,6 +995,7 @@ for (trialName in testTrials){
     n_iter = 2000
     MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
     MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
+    saveRDS(MegaLMM_state, file = here::here("output", "megaLMM", "individualLOC_2023-2024", paste0(seed, "IL2024_MegaLMM_state.rds")))
 
     Lambda_samples = load_posterior_param(MegaLMM_state,'Lambda')
     Lambda_hat <- get_posterior_mean(Lambda_samples)
@@ -863,8 +1015,12 @@ for (trialName in testTrials){
     allCorr <- bind_rows(allCorr, toAdd)
   }#END CV
   saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
-          file=here::here("output", "megaLMM", paste0(seed, "IL2024_MegaLMMresultsCV2.rds")))
+          file=here::here("output", "megaLMM", "individualLOC_2023-2024", paste0(seed, "IL2024_MegaLMMresultsCV2.rds")))
 }#END trial
+# save files used in posterior eval
+saveRDS(yldTest, file = here::here(runID, "Y_testing.rds"))
+saveRDS(yldTrain, file = here::here(runID, "Y_training.rds"))
+saveRDS(yldWide, file = here::here(runID, "pheno_input.rds"))
 ```
 
 summary of the MCMC chain 
@@ -874,16 +1030,39 @@ print(MegaLMM_state)
 summary(MegaLMM_state)
 ```
 
-Prediction Accuracy 
+# Run univariate GBLUP as reference
+
+To evaluate whether the multi-trait prediction from `MegaLMM` is useful, we'll run normal univariate genomic prediction using the GBLUP model using the `rrBLUP` package.
 
 ```{r}
-MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
-MegaLMM_Uhat_accuracy
-MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
-MegaLMM_Uhat_accuracy
-# should this be the whole data set or the Test set (the ones masked in to train)
+rrBLUP_predictions = matrix(NA,nrow(yldWide),ncol(yldWide),dimnames = dimnames(yldWide)) # 12 col, 46 rows
+for(i in 1:ncol(yldWide)) {
+  X = model.matrix(~1,sample_data) # could include covariates in place of the 1, if it is variable among the individuals for this environment
+  #if(var(X[!is.na(yldTrain[,i]),2]) == 0) X = X[,-2,drop=FALSE] # use this is covariate is in column 2
+  res = mixed.solve(y = yldTrain[,i],
+                                       X = X,
+                                       K = GRM)
+  rrBLUP_predictions[,i] = c(X %*% res$beta) + res$u
+  saveRDS(rrBLUP_predictions, file=here::here("output", "megaLMM", "individualLOCgBLUP_2023-2024", paste0(seed, "IL2024_rrBLUPresultsCV2.rds")))
+}
 ```
 
+Reload if coming back 
+
+```{r}
+# MegaLMM_state = readRDS(here::here('output', 'megaLMM', 'individualLOC_2023-2024', '6234IL2024_MegaLMM_state.rds'))
+# rrBLUP_predictions = readRDS(here::here('output', 'megaLMM', 'individualLOCgBLUP_2023-2024', '6234IL2024_rrBLUPresultsCV2.rds'))
+
+# yldTest <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "IL2024_6234CV2", "Y_testing.rds"))
+# yldTrain <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "IL2024_6234CV2", "Y_training.rds"))
+# yldWide <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "IL2024_6234CV2", "pheno_input.rds"))
+```
+
+Here are the correlations between the rBLUP predictions and the testing data:
+
+```{r}
+diag(cor(yldTest,rrBLUP_predictions,use='p'))
+```
 
 # Working with postierior samples
 
@@ -903,6 +1082,15 @@ dim(U_hat)
 # calculate lower and upper 0.95 Highest Posterior Density bounds for each element of the matrix `U`
 U_HPD = get_posterior_HPDinterval(U,prob = 0.95)
 dim(U_HPD)
+```
+
+```{r}
+Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
+
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
+MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
+hist(MegaLMM_Uhat_accuracy)
+hist(MegaLMM_Eta_mean_accuracy)
 ```
 
 ```{r}
@@ -929,8 +1117,31 @@ dim(G_samples)
 dim(R_samples)
 ```
 
+Prediction Accuracy 
+
 ```{r}
-rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy)
+MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+# should this be the whole data set or the Test set (the ones masked in to train)
+```
+
+# Estimate Genomic Prediction accuracy
+
+Let's compare the accuracy of `MegaLMM's` predictions (`U_hat` or `Eta_mean`) to those of `rrBLUP`:
+
+```{r}
+rrBLUP_accuracy = diag(cor(yldTest,rrBLUP_predictions,use='p'))
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
+MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
+plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1)
+plot(rrBLUP_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
+plot(MegaLMM_Uhat_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
+```
+
+```{r}
+rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy, rrBLUP_predictions, rrBLUP_accuracy, GRM, allLambdaPost, Eta_mean, Lambda_hat, res, X, Y2, cvFold, Eta_mean_accuracy, i, Lambda_samples, MegaLMM_Eta_mean_accuracy, n_iter, nAccInTrial, nCVfolds, obsYld, predGen, predPhen, setMissing, trialName)
 ```
 
 
@@ -964,7 +1175,10 @@ sample_data <- data_matrices$data
 yldWide <- data_matrices$Y
 yldWide <- yldWide[, apply(yldWide, 2, 
                            function(v) sum(is.na(v)) < 0.95 * nrow(yldWide))]
-
+# make sure data and GRM match
+all(rownames(GRM2) %in% sample_data$germplasmName)
+GRM = GRM2[sample_data$germplasmName,sample_data$germplasmName] # fit GRM based on oats in the data
+all(rownames(GRM) %in% sample_data$germplasmName)
 ```
 
 #### Set up results objects
@@ -985,7 +1199,7 @@ The idea here is, per trial, to leave N lines in the trial and predict the
 remaining lines.  This is a case where we are predicting old accessions in 
 old environments.
 ```{r Run cross validation -- CV2, eval=FALSE}
-runID <- paste0("output/megaLMM/", runID, "CV2")
+runID <- paste0("output/megaLMM/individualLOC_2023-2024/", runID, "CV2")
 # Some cross val in each trial
 #for (trialName in trialNames){
 testTrials <- sample(trialNames, 12)
@@ -999,9 +1213,8 @@ for (trialName in testTrials){
     yldTrain[!is.na(yldTrain[, trialName]), trialName][setMissing] <- NA
     yldTest[which(!is.na(yldTest[, trialName]))[-setMissing], trialName] <- NA
 
-    
     MegaLMM_state <- setupMegaLMMstate(accNames=accNamesTib, wideData=yldTrain,
-                                       kinMat=GRM2, runID=runID) # try different things here for wideData
+                                       kinMat=GRM, runID=runID) # try different things here for wideData
 
     # Burn in
     n_iter <- 200
@@ -1021,6 +1234,7 @@ for (trialName in testTrials){
     n_iter = 2000
     MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
     MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
+    saveRDS(MegaLMM_state, file = here::here("output", "megaLMM", "individualLOC_2023-2024", paste0(seed, "SD2023_MegaLMM_state.rds")))
 
     Lambda_samples = load_posterior_param(MegaLMM_state,'Lambda')
     Lambda_hat <- get_posterior_mean(Lambda_samples)
@@ -1040,8 +1254,12 @@ for (trialName in testTrials){
     allCorr <- bind_rows(allCorr, toAdd)
   }#END CV
   saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
-          file=here::here("output", "megaLMM", paste0(seed, "SD2023_MegaLMMresultsCV2.rds")))
+          file=here::here("output", "megaLMM", "individualLOC_2023-2024", paste0(seed, "SD2023_MegaLMMresultsCV2.rds")))
 }#END trial
+# save files used in posterior eval
+saveRDS(yldTest, file = here::here(runID, "Y_testing.rds"))
+saveRDS(yldTrain, file = here::here(runID, "Y_training.rds"))
+saveRDS(yldWide, file = here::here(runID, "pheno_input.rds"))
 ```
 
 summary of the MCMC chain 
@@ -1051,16 +1269,39 @@ print(MegaLMM_state)
 summary(MegaLMM_state)
 ```
 
-Prediction Accuracy 
+# Run univariate GBLUP as reference
+
+To evaluate whether the multi-trait prediction from `MegaLMM` is useful, we'll run normal univariate genomic prediction using the GBLUP model using the `rrBLUP` package.
 
 ```{r}
-MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
-MegaLMM_Uhat_accuracy
-MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
-MegaLMM_Uhat_accuracy
-# should this be the whole data set or the Test set (the ones masked in to train)
+rrBLUP_predictions = matrix(NA,nrow(yldWide),ncol(yldWide),dimnames = dimnames(yldWide)) # 12 col, 46 rows
+for(i in 1:ncol(yldWide)) {
+  X = model.matrix(~1,sample_data) # could include covariates in place of the 1, if it is variable among the individuals for this environment
+  #if(var(X[!is.na(yldTrain[,i]),2]) == 0) X = X[,-2,drop=FALSE] # use this is covariate is in column 2
+  res = mixed.solve(y = yldTrain[,i],
+                                       X = X,
+                                       K = GRM)
+  rrBLUP_predictions[,i] = c(X %*% res$beta) + res$u
+  saveRDS(rrBLUP_predictions, file=here::here("output", "megaLMM", "individualLOCgBLUP_2023-2024", paste0(seed, "SD2023_rrBLUPresultsCV2.rds")))
+}
 ```
 
+Reload if coming back 
+
+```{r}
+# MegaLMM_state = readRDS(here::here('output', 'megaLMM', 'individualLOC_2023-2024', '6234SD2023_MegaLMM_state.rds'))
+# rrBLUP_predictions = readRDS(here::here('output', 'megaLMM', 'individualLOCgBLUP_2023-2024', '6234SD2023_rrBLUPresultsCV2.rds'))
+
+# yldTest <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "SD2023_6234CV2", "Y_testing.rds"))
+# yldTrain <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "SD2023_6234CV2", "Y_training.rds"))
+# yldWide <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "SD2023_6234CV2", "pheno_input.rds"))
+```
+
+Here are the correlations between the rBLUP predictions and the testing data:
+
+```{r}
+diag(cor(yldTest,rrBLUP_predictions,use='p'))
+```
 
 # Working with postierior samples
 
@@ -1080,6 +1321,15 @@ dim(U_hat)
 # calculate lower and upper 0.95 Highest Posterior Density bounds for each element of the matrix `U`
 U_HPD = get_posterior_HPDinterval(U,prob = 0.95)
 dim(U_HPD)
+```
+
+```{r}
+Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
+
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
+MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
+hist(MegaLMM_Uhat_accuracy)
+hist(MegaLMM_Eta_mean_accuracy)
 ```
 
 ```{r}
@@ -1106,8 +1356,31 @@ dim(G_samples)
 dim(R_samples)
 ```
 
+Prediction Accuracy 
+
 ```{r}
-rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy)
+MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+# should this be the whole data set or the Test set (the ones masked in to train)
+```
+
+# Estimate Genomic Prediction accuracy
+
+Let's compare the accuracy of `MegaLMM's` predictions (`U_hat` or `Eta_mean`) to those of `rrBLUP`:
+
+```{r}
+rrBLUP_accuracy = diag(cor(yldTest,rrBLUP_predictions,use='p'))
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
+MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
+plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1)
+plot(rrBLUP_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
+plot(MegaLMM_Uhat_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
+```
+
+```{r}
+rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy, rrBLUP_predictions, rrBLUP_accuracy, GRM, allLambdaPost, Eta_mean, Lambda_hat, res, X, Y2, cvFold, Eta_mean_accuracy, i, Lambda_samples, MegaLMM_Eta_mean_accuracy, n_iter, nAccInTrial, nCVfolds, obsYld, predGen, predPhen, setMissing, trialName)
 ```
 
 
@@ -1141,7 +1414,10 @@ sample_data <- data_matrices$data
 yldWide <- data_matrices$Y
 yldWide <- yldWide[, apply(yldWide, 2, 
                            function(v) sum(is.na(v)) < 0.95 * nrow(yldWide))]
-
+# make sure data and GRM match
+all(rownames(GRM2) %in% sample_data$germplasmName)
+GRM = GRM2[sample_data$germplasmName,sample_data$germplasmName] # fit GRM based on oats in the data
+all(rownames(GRM) %in% sample_data$germplasmName)
 ```
 
 #### Set up results objects
@@ -1162,7 +1438,7 @@ The idea here is, per trial, to leave N lines in the trial and predict the
 remaining lines.  This is a case where we are predicting old accessions in 
 old environments.
 ```{r Run cross validation -- CV2, eval=FALSE}
-runID <- paste0("output/megaLMM/", runID, "CV2")
+runID <- paste0("output/megaLMM/individualLOC_2023-2024/", runID, "CV2")
 # Some cross val in each trial
 #for (trialName in trialNames){
 testTrials <- sample(trialNames, 12)
@@ -1176,9 +1452,8 @@ for (trialName in testTrials){
     yldTrain[!is.na(yldTrain[, trialName]), trialName][setMissing] <- NA
     yldTest[which(!is.na(yldTest[, trialName]))[-setMissing], trialName] <- NA
 
-    
     MegaLMM_state <- setupMegaLMMstate(accNames=accNamesTib, wideData=yldTrain,
-                                       kinMat=GRM2, runID=runID) # try different things here for wideData
+                                       kinMat=GRM, runID=runID) # try different things here for wideData
 
     # Burn in
     n_iter <- 200
@@ -1198,6 +1473,7 @@ for (trialName in testTrials){
     n_iter = 2000
     MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
     MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
+    saveRDS(MegaLMM_state, file = here::here("output", "megaLMM", "individualLOC_2023-2024", paste0(seed, "SD2024_MegaLMM_state.rds")))
 
     Lambda_samples = load_posterior_param(MegaLMM_state,'Lambda')
     Lambda_hat <- get_posterior_mean(Lambda_samples)
@@ -1217,8 +1493,12 @@ for (trialName in testTrials){
     allCorr <- bind_rows(allCorr, toAdd)
   }#END CV
   saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
-          file=here::here("output", "megaLMM", paste0(seed, "SD2024_MegaLMMresultsCV2.rds")))
+          file=here::here("output", "megaLMM", "individualLOC_2023-2024", paste0(seed, "SD2024_MegaLMMresultsCV2.rds")))
 }#END trial
+# save files used in posterior eval
+saveRDS(yldTest, file = here::here(runID, "Y_testing.rds"))
+saveRDS(yldTrain, file = here::here(runID, "Y_training.rds"))
+saveRDS(yldWide, file = here::here(runID, "pheno_input.rds"))
 ```
 
 summary of the MCMC chain 
@@ -1228,16 +1508,39 @@ print(MegaLMM_state)
 summary(MegaLMM_state)
 ```
 
-Prediction Accuracy 
+# Run univariate GBLUP as reference
+
+To evaluate whether the multi-trait prediction from `MegaLMM` is useful, we'll run normal univariate genomic prediction using the GBLUP model using the `rrBLUP` package.
 
 ```{r}
-MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
-MegaLMM_Uhat_accuracy
-MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
-MegaLMM_Uhat_accuracy
-# should this be the whole data set or the Test set (the ones masked in to train)
+rrBLUP_predictions = matrix(NA,nrow(yldWide),ncol(yldWide),dimnames = dimnames(yldWide)) # 12 col, 46 rows
+for(i in 1:ncol(yldWide)) {
+  X = model.matrix(~1,sample_data) # could include covariates in place of the 1, if it is variable among the individuals for this environment
+  #if(var(X[!is.na(yldTrain[,i]),2]) == 0) X = X[,-2,drop=FALSE] # use this is covariate is in column 2
+  res = mixed.solve(y = yldTrain[,i],
+                                       X = X,
+                                       K = GRM)
+  rrBLUP_predictions[,i] = c(X %*% res$beta) + res$u
+  saveRDS(rrBLUP_predictions, file=here::here("output", "megaLMM", "individualLOCgBLUP_2023-2024", paste0(seed, "SD2024_rrBLUPresultsCV2.rds")))
+}
 ```
 
+Reload if coming back 
+
+```{r}
+# MegaLMM_state = readRDS(here::here('output', 'megaLMM', 'individualLOC_2023-2024', '6234SD2024_MegaLMM_state.rds'))
+# rrBLUP_predictions = readRDS(here::here('output', 'megaLMM', 'individualLOCgBLUP_2023-2024', '6234SD2024_rrBLUPresultsCV2.rds'))
+
+# yldTest <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "SD2024_6234CV2", "Y_testing.rds"))
+# yldTrain <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "SD2024_6234CV2", "Y_training.rds"))
+# yldWide <- readRDS(here::here("output", "megaLMM", "individualLOC_2023-2024", "SD2024_6234CV2", "pheno_input.rds"))
+```
+
+Here are the correlations between the rBLUP predictions and the testing data:
+
+```{r}
+diag(cor(yldTest,rrBLUP_predictions,use='p'))
+```
 
 # Working with postierior samples
 
@@ -1257,6 +1560,15 @@ dim(U_hat)
 # calculate lower and upper 0.95 Highest Posterior Density bounds for each element of the matrix `U`
 U_HPD = get_posterior_HPDinterval(U,prob = 0.95)
 dim(U_HPD)
+```
+
+```{r}
+Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
+
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
+MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
+hist(MegaLMM_Uhat_accuracy)
+hist(MegaLMM_Eta_mean_accuracy)
 ```
 
 ```{r}
@@ -1283,6 +1595,55 @@ dim(G_samples)
 dim(R_samples)
 ```
 
+Prediction Accuracy 
+
 ```{r}
-rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy)
+MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
+MegaLMM_Uhat_accuracy
+# should this be the whole data set or the Test set (the ones masked in to train)
+```
+
+# Estimate Genomic Prediction accuracy
+
+Let's compare the accuracy of `MegaLMM's` predictions (`U_hat` or `Eta_mean`) to those of `rrBLUP`:
+
+```{r}
+rrBLUP_accuracy = diag(cor(yldTest,rrBLUP_predictions,use='p'))
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
+MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
+plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1)
+plot(rrBLUP_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
+plot(MegaLMM_Uhat_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
+```
+
+```{r}
+rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy, rrBLUP_predictions, rrBLUP_accuracy, GRM, allLambdaPost, Eta_mean, Lambda_hat, res, X, Y2, cvFold, Eta_mean_accuracy, i, Lambda_samples, MegaLMM_Eta_mean_accuracy, n_iter, nAccInTrial, nCVfolds, obsYld, predGen, predPhen, setMissing, trialName)
+```
+
+
+
+
+
+
+
+```{r Read CV2 MegaLMM results}
+CV2dir <- here::here("output", "megaLMM", "individualLOC_2023-2024")
+files <- list.files(path=CV2dir, pattern = "MegaLMMresultsCV2", full.names = TRUE)
+df_list <- lapply(files, readRDS)
+
+allCorrCV2 <- Reduce(function(x, y) bind_rows(x, y$allCorr), 
+                  init=tibble(), df_list)
+allCorrCV2 <- allCorrCV2 |> group_by(trial) |> 
+  summarize(medGenAcc=median(genAcc), medPhenAcc=median(phenAcc))
+badTrialsCV2 <- allCorrCV2 |> filter(medGenAcc < 0.4)
+summary(allCorrCV2$medGenAcc)
+summary(allCorrCV2$medPhenAcc)
+boxplot(allCorrCV2[, c("medGenAcc", "medPhenAcc")])
+plot(allCorrCV2[, c("medGenAcc", "medPhenAcc")])
+```
+
+```{r}
+rm(CV2dir,files, df_list, allCorrCV2, badTrialsCV2)
 ```
