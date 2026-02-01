@@ -154,44 +154,6 @@ The yield data was provided in the **tall** format, meaning a single observation
 
 But `MegaLMM` isn't good for modeling GxE like this. Instead, we want to consider the yield in each environment as a separate trait, and each line is measured for 6-9 of these traits. So we need to construct a `502x19` trait matrix. The `MegaLMM` package includes a helper function to do this called `create_data_matrices`. This uses `tidyr`'s `pivot_wider` function to create the matrix, and the arguments are the same.
 
-```{r}
-data_matrices2 = create_data_matrices(
-  tall_data = yield_data2_mean, # your input tall data.frame,
-  id_cols = c('germplasmName','Population'), # vector giving the set of columns of tall_data used to identify each individual, and any covariates you'll want to use to model the trait data across individuals.
-  names_from = 'UniqEnv_pea', # vector giving the set of columns of tall_data used to identify each trait 
-  values_from = 'oatYield' # name of the trait data column
-)
-
-data_matrices2 = create_data_matrices(
-  tall_data = yield_data2_mean, # your input tall data.frame,
-  id_cols = c('germplasmName','Population'), # vector giving the set of columns of tall_data used to identify each individual, and any covariates you'll want to use to model the trait data across individuals.
-  names_from = 'peaAcc', # vector giving the set of columns of tall_data used to identify each trait 
-  values_from = 'oatYield' # name of the trait data column
-)
-```
-
-The output of `create_data_matrices` is a list with 3 elements. We'll only use the first two.
-
-The first is a new data.frame with one row per individual, and a single column giving the Line identifier. If you have covariates among lines (e.g. sex, population, etc), those variables should be included here too.
-
-```{r}
-sample_data2 = data_matrices2$data
-sample_data2
-```
-
-The second is the `nxp` trait matrix. The rows of the trait matrix are aligned with the rows of the individual identifier data.frame. We can extract these for use in `MegaLMM`:
-
-```{r}
-Y2 = data_matrices2$Y
-head(Y2)[,1:5]
-```
-
-One check we need to do is ensure all our individuals in our data are represented in the genomic relationship matrix:
-
-```{r}
-all(rownames(GRM2) %in% sample_data2$germplasmName)
-GRM2 = GRM2[sample_data2$germplasmName,sample_data2$germplasmName]
-```
 
 
 # Set up Cross Validation
@@ -436,7 +398,7 @@ Let's compare the accuracy of `MegaLMM's` predictions (`U_hat` or `Eta_mean`) to
 rrBLUP_accuracy = diag(cor(yldTest,rrBLUP_predictions,use='p'))
 MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
 MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
-plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1)
+plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1) # saved as output/MegaLMM/individualLOC_2023-2024/figures/Prediction_Accuracy_Comparison_NY2023
 plot(rrBLUP_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
 plot(MegaLMM_Uhat_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
 ```
@@ -668,6 +630,19 @@ MegaLMM_Uhat_accuracy
 MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) 
 MegaLMM_Uhat_accuracy
 # should this be the whole data set or the Test set (the ones masked in to train)
+```
+
+# Estimate Genomic Prediction accuracy
+
+Let's compare the accuracy of `MegaLMM's` predictions (`U_hat` or `Eta_mean`) to those of `rrBLUP`:
+
+```{r}
+rrBLUP_accuracy = diag(cor(yldTest,rrBLUP_predictions,use='p'))
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
+MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
+plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1) # saved as output/MegaLMM/individualLOC_2023-2024/figures/Prediction_Accuracy_Comparison_NY2024
+plot(rrBLUP_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
+plot(MegaLMM_Uhat_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
 ```
 
 ```{r}
@@ -903,7 +878,7 @@ Let's compare the accuracy of `MegaLMM's` predictions (`U_hat` or `Eta_mean`) to
 rrBLUP_accuracy = diag(cor(yldTest,rrBLUP_predictions,use='p'))
 MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
 MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
-plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1)
+plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1) # saved as output/MegaLMM/individualLOC_2023-2024/figures/Prediction_Accuracy_Comparison_IL2023
 plot(rrBLUP_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
 plot(MegaLMM_Uhat_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
 ```
@@ -1141,7 +1116,7 @@ Let's compare the accuracy of `MegaLMM's` predictions (`U_hat` or `Eta_mean`) to
 rrBLUP_accuracy = diag(cor(yldTest,rrBLUP_predictions,use='p'))
 MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
 MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
-plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1)
+plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1)  # saved as output/MegaLMM/individualLOC_2023-2024/figures/Prediction_Accuracy_Comparison_IL2024
 plot(rrBLUP_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
 plot(MegaLMM_Uhat_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
 ```
@@ -1380,7 +1355,7 @@ Let's compare the accuracy of `MegaLMM's` predictions (`U_hat` or `Eta_mean`) to
 rrBLUP_accuracy = diag(cor(yldTest,rrBLUP_predictions,use='p'))
 MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
 MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
-plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1)
+plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1) # saved as output/MegaLMM/individualLOC_2023-2024/figures/Prediction_Accuracy_Comparison_SD2023
 plot(rrBLUP_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
 plot(MegaLMM_Uhat_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
 ```
@@ -1619,7 +1594,7 @@ Let's compare the accuracy of `MegaLMM's` predictions (`U_hat` or `Eta_mean`) to
 rrBLUP_accuracy = diag(cor(yldTest,rrBLUP_predictions,use='p'))
 MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p'))
 MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
-plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1)
+plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1) # saved as output/MegaLMM/individualLOC_2023-2024/figures/Prediction_Accuracy_Comparison_SD2024
 plot(rrBLUP_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
 plot(MegaLMM_Uhat_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
 ```
