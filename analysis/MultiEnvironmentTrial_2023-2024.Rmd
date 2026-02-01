@@ -95,18 +95,7 @@ grainWgt$UniqEnv <- as.factor(grainWgt$UniqEnv)
 grainWgt2 <- grainWgt[grainWgt$management != "monoculture", ]
 ```
 
-Create K matrix
 
-```{r K, message=FALSE}
-incOatAcc <- model.matrix(~ -1 + germplasmName, grainWgt)
-
-#  use K = Z %*% GRM %*% t(Z),  Z is incidence matrix
-K = incOatAcc %*% GRM2 %*% t(incOatAcc)
-
-# try with the matrix with 0.001 added to the diagonal 
-K2 = incOatAcc %*% GRM3 %*% t(incOatAcc)
-
-```
 
 
 
@@ -582,6 +571,23 @@ summary of the MCMC chain
 ```{r}
 print(MegaLMM_state)
 summary(MegaLMM_state)
+```
+
+# Run univariate GBLUP as reference
+
+To evaluate whether the multi-trait prediction from `MegaLMM` is useful, we'll run normal univariate genomic prediction using the GBLUP model using the `rrBLUP` package.
+
+```{r}
+rrBLUP_predictions = matrix(NA,nrow(yldWide),ncol(yldWide),dimnames = dimnames(yldWide)) # 12 col, 46 rows
+for(i in 1:ncol(yldWide)) {
+  X = model.matrix(~1,sample_data) # could include covariates in place of the 1, if it is variable among the individuals for this environment
+  #if(var(X[!is.na(yldTrain[,i]),2]) == 0) X = X[,-2,drop=FALSE] # use this is covariate is in column 2
+  res = mixed.solve(y = yldTrain[,i],
+                                       X = X,
+                                       K = GRM)
+  rrBLUP_predictions[,i] = c(X %*% res$beta) + res$u
+  saveRDS(rrBLUP_predictions, file=here::here("output", "megaLMM", "individualLOCgBLUP_2023-2024", paste0(seed, "NY2024_rrBLUPresultsCV2.rds")))
+}
 ```
 
 Reload if coming back 
