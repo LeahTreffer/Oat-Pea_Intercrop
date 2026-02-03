@@ -298,8 +298,8 @@ for(i in 1:ncol(yldWide)) {
 Reload if coming back 
 
 ```{r}
-# MegaLMM_state = readRDS(here::here('output', 'megaLMM', 'allLOC_2023-2024', 'MegaLMM_state.rds'))
-# rrBLUP_predictions = readRDS(here::here('output', 'megaLMM', 'allLOC_2023-2024', 'rrBLUPresults.rds'))
+# MegaLMM_state = readRDS(here::here('output', 'megaLMM', 'allLOC_2023-2024', '4863MegaLMM_state.rds'))
+# rrBLUP_predictions = readRDS(here::here('output', 'megaLMM', 'allLOCgBLUP_2023-2024', '4863rrBLUPresults.rds'))
 
 # yldTest <- readRDS(here::here("output", "megaLMM", "allLOC_2023-2024", "2023-2024_4863", "Y_testing.rds"))
 # yldTrain <- readRDS(here::here("output", "megaLMM", "allLOC_2023-2024", "2023-2024_4863", "Y_training.rds"))
@@ -339,7 +339,7 @@ Prediction Accuracy
 ```{r}
 Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
 
-MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) # should this be the whole data set or the Test set (the ones masked in to train)?
+MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) # should this be the whole data set (yldWide) or the Test set (the ones masked in to train)? 
 MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
 hist(MegaLMM_Uhat_accuracy)
 hist(MegaLMM_Eta_mean_accuracy)
@@ -376,6 +376,12 @@ G_samples = load_posterior_param(MegaLMM_state,'G')
 R_samples = load_posterior_param(MegaLMM_state,'R')
 dim(G_samples)
 dim(R_samples)
+```
+
+compare predicted values to the observed values 
+```{r}
+plot(U_hat,yldWide);abline(0,1) #saved as output/MegaLMM/allLOC_2023-2024/figures/Obs_PredUhat_Comparison 
+plot(Eta_mean,yldWide);abline(0,1) #saved as output/MegaLMM/allLOC_2023-2024/figures/Obs_PredEta_Comparison
 ```
 
 ```{r}
