@@ -30,12 +30,13 @@ library(here)
 
 ```{r setup, include=FALSE}
 knitr::opts_knit$set(root.dir = here::here())
+here::i_am('analysis/2025_B4I/2_Data_Evaluation.Rmd')
 ```
 
 ```{r}
-data <- read.csv('data/Intermediate/B4I_2025_multi_location_data.csv')
-plot_data <- read.csv('data/Intermediate/B4I_2025_multi_location_plotdata.csv')
-subplot_data <- read.csv('data/Intermediate/B4I_2025_multi_location_subplotdata.csv')
+data <- read.csv(here('data','Intermediate','B4I_2025_multi_location_data.csv'))
+plot_data <- read.csv(here('data','Intermediate','B4I_2025_multi_location_plotdata.csv'))
+subplot_data <- read.csv(here('data','Intermediate','B4I_2025_multi_location_subplotdata.csv'))
 ```
 
 ## Box Plot and Histogram for all locations

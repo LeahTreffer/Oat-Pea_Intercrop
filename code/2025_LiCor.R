@@ -1,5 +1,5 @@
 # Data from 2025 NY oat-pea intercrop trials
-# Field : Helfner
+# Field : Helfner, Ithaca NY
 # 20 plots; these were the first 10 'border' plots on each side of the 400 plot B4I experiment
 # 5 oat accessions
 # 5 pea accessions
@@ -54,8 +54,11 @@ library(corrplot)
 library(lme4)
 library(multcomp)
 library(emmeans)
+library(here)
 
-LiCor <- read_excel("data/T1_T2_T3_light_interception.xlsx", sheet = 'Long')
+here::i_am("code/2025_LiCor.R")
+
+LiCor <- read_excel(here("data", "T1_T2_T3_light_interception.xlsx"), sheet = 'Long')
 
 LiCor$plot_number <- as.factor(LiCor$plot_number)
 LiCor$subplot_number <- as.factor(LiCor$subplot_number)
@@ -133,22 +136,30 @@ pea_mono_adj <- LiCor %>%
 LiCor <- LiCor %>%
   left_join(
     oat_mono_adj %>%
-      dplyr::select(oat_accession_name, plot_number, subplot_number, Timepoint, adj_light_interception),
+      dplyr::select(oat_accession_name, plot_number, subplot_number, Timepoint, adj_light_interception, adj_top_light_interception, adj_bottom_light_interception),
     by = c("oat_accession_name", "plot_number", "subplot_number", "Timepoint")
   )
 # Add Adj pea mono values to data table
 LiCor <- LiCor %>%
   left_join(
     pea_mono_adj %>%
-      dplyr::select(pea_accession_name, plot_number, subplot_number, Timepoint, adj_light_interception),
+      dplyr::select(pea_accession_name, plot_number, subplot_number, Timepoint, adj_light_interception, adj_top_light_interception, adj_bottom_light_interception),
     by = c("pea_accession_name", "plot_number", "subplot_number", "Timepoint")
   )
 #combine adjustment columns into one column
 LiCor$adj_light_interception <- apply(LiCor[, c("adj_light_interception.x", "adj_light_interception.y")], 1, function(x)
   paste(na.omit(x), collapse = " ")
 )
+LiCor$adj_top_light_interception <- apply(LiCor[, c("adj_top_light_interception.x", "adj_top_light_interception.y")], 1, function(x)
+  paste(na.omit(x), collapse = " ")
+)
+LiCor$adj_bottom_light_interception <- apply(LiCor[, c("adj_bottom_light_interception.x", "adj_bottom_light_interception.y")], 1, function(x)
+  paste(na.omit(x), collapse = " ")
+)
 
 LiCor$adj_light_interception <- as.numeric(LiCor$adj_light_interception)
+LiCor$adj_top_light_interception <- as.numeric(LiCor$adj_top_light_interception)
+LiCor$adj_bottom_light_interception <- as.numeric(LiCor$adj_bottom_light_interception)
 
 mono_pea <- LiCor[LiCor$Crop == "pea", ]
 mono_oat <- LiCor[LiCor$Crop == "oat", ]
@@ -166,8 +177,8 @@ mean_intercrop_LI2 <- mean((intercrop_data$total_light_interception/2), na.rm = 
 LIE_adj2 <- mean_intercrop_LI2 / mean_mono_LI
 LIE_adj_o2 <- mean_intercrop_LI2 / mean_mono_oat_LI
 LIE_adj_p2 <- mean_intercrop_LI2 / mean_mono_pea_LI
-# intercrop plots were more efficent at light inerception than the monocultures
-# intercrops intercepted slightly more light than the monocultures
+# intercrop plots were slightly more efficent at light inerception than the monocultures (LIE = 1.09)
+# both oat and pea intercrops intercepted slightly more light than their respective monocultures
 
 ### Histograms
 
@@ -182,9 +193,8 @@ hist(LiCor$bottom_light_interception)
 
 # correlation matrix with pairwise complete obs
 corr_matrix <- cor(LiCor[, c("Oat_biomass", "Pea_Biomass", "Weed_Biomass",
-                             "Oat_Height", "Pea_Height", "total_light_interception",
-                             "top_light_interception", "bottom_light_interception",
-                             "adj_light_interception")],
+                             "Oat_Height", "Pea_Height", "adj_light_interception",
+                             "adj_top_light_interception", "adj_bottom_light_interception")],
   use = "pairwise.complete.obs"
 )
 
@@ -198,8 +208,8 @@ corr_matrix_int <- LiCor %>%
   dplyr::select(
     Oat_biomass, Pea_Biomass, Weed_Biomass,
     Oat_Height, Pea_Height,
-    total_light_interception, top_light_interception,
-    bottom_light_interception
+    adj_light_interception, adj_top_light_interception,
+    adj_bottom_light_interception
   ) %>%
   cor(use = "pairwise.complete.obs")
 
@@ -226,16 +236,17 @@ emmeans(model, pairwise ~ plot_number)
 emmeans(model, pairwise ~ subplot_number)
 
 model_aov <- aov(total_light_interception~ plot_number + subplot_number + Timepoint + Crop, data=LiCor)
+summary(model_aov)
 
 # differences in light interception between plots
 tukey <- glht(model_aov, linfct = mcp(plot_number = "Tukey"))
 summary(tukey)
-plot(tukey)
+#plot(tukey)
 
 # differences in light interception between subplots
 tukey <- glht(model_aov, linfct = mcp(subplot_number = "Tukey"))
 summary(tukey)
-plot(tukey)
+#plot(tukey)
 
 ### LM Oat Biomass
 model <- lm(Oat_biomass~ plot_number + subplot_number + Timepoint + Crop, data=LiCor)
