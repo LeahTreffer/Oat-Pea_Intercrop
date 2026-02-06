@@ -9,8 +9,8 @@ analysis/*png
 analysis/*html
 analysis/*_cache
 analysis/site_libs
-output/megaLMM/allLOC_2023-2024/2023-2024_4863/Posterior/G_5000.rds
-output/megaLMM/allLOC_2023-2024/2023-2024_4863/Posterior/R_5000.rds
-output/megaLMM/allLOC_2023-2024/2023-2024_4863/Posterior/U_CV2_5000.rds
-output/megaLMM/allLOC_2023-2024/2023-2024_4863/Posterior/U_CV2noU_R_5000.rds
-
+output/megaLMM/allLOC_2023-2024/2023-2024_4863/Posterior
+output/megaLMM/allLOC_2023-2024/2023-2024_1592/Posterior
+output/Light_Interception
+output/megaLMM/individualLOC_2023-2024
+output/megaLMM/individualLOCgBLUP_2023-2024

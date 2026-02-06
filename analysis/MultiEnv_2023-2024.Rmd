@@ -38,7 +38,7 @@ if(!require(MegaLMM)) {
 library(MegaLMM)
 ```
 
-
+# Load and manipulate data
 
 ```{r data}
 # Importing Phenotype file (Leah complied in other scripts and added a copy to the shared directory)
@@ -125,16 +125,14 @@ sub6$oat_yield_standardized <- scale(sub6$oatYield, center = TRUE, scale = TRUE)
 
 grainWgt3 <- rbind(sub1, sub2, sub3, sub4, sub5, sub6)
 
+yield_data2 <- grainWgt3%>%dplyr::select(germplasmName, UniqEnv, UniqEnv_pea, peaAcc, oat_yield_standardized)
+yield_data2$UniqEnv <- as.character(yield_data2$UniqEnv)
+yield_data2$UniqEnv_pea <- as.character(yield_data2$UniqEnv_pea)
 ```
 
 Adaping from MegaLMM tutorial: https://github.com/deruncie/MegaLMM/blob/master/vignettes/MultiEnvironmentTrial.Rmd
 
-```{r}
-yield_data2 <- grainWgt3%>%dplyr::select(germplasmName, UniqEnv, UniqEnv_pea, peaAcc, oat_yield_standardized)
-yield_data2$UniqEnv <- as.character(yield_data2$UniqEnv)
-yield_data2$UniqEnv_pea <- as.character(yield_data2$UniqEnv_pea)
-yield_data2$Population <- NA
-```
+# Visualize 
 
 We can see the incidence matrix of lines by environments using the `Image` function in `MegaLMM`
 
@@ -148,6 +146,14 @@ hist(table(yield_data2$germplasmName),main = 'Environments per line',breaks=20)
 hist(table(yield_data2$UniqEnv_pea),main = 'Lines per Environment',breaks=20)
 ```
 
+We can view the matrix also using `Image`
+
+```{r}
+Image(GRM2)
+```
+
+# reformat for MegaLMM 
+
 MegaLMM works by each line having one value per environment 
 
 ```{r}
@@ -155,16 +161,9 @@ MegaLMM works by each line having one value per environment
 yield_data2_mean <- yield_data2 |>
   dplyr::summarise(
     oat_yield_standardized = mean(oat_yield_standardized, na.rm = TRUE),
-    .by = c(germplasmName, Population, UniqEnv_pea)
+    .by = c(germplasmName, UniqEnv_pea)
   )
 ```
-
-We can view the matrix also using `Image`
-
-```{r}
-Image(GRM2)
-```
-
 
 ```{r}
 accNames <- yield_data2_mean$germplasmName |> unique()
@@ -192,17 +191,98 @@ GRM = GRM2[sample_data$germplasmName,sample_data$germplasmName] # fit GRM based 
 #### Set up results objects
 
 ```{r Set up results objects}
-nCVfolds <- 6
+# nCVfolds <- 6 # used for seed 4863 with old CV run 
 allLambdaPost <- NULL
 allCorr <- tibble()
 
 accNamesTib <- tibble(germplasmName=accNames)
-seed <- 4863
+seed <- 1592 # OLD seed = 4863
 set.seed(seed)
 runID <- paste0("2023-2024_", seed) # Will make a folder with this name
 ```
 
 #### Run cross validation 
+
+The goal of genomic prediction is to accurately predict the genetic values of individuals that are not observed in a particular environment. The standard way to estimate this accuracy is to mask a portion of the lines in the input data, use a model to predict these masked values, and then measure the correlation between the predicted values and the original data. Because we are evaluating the accuracy for incomplete multi-environment trial prediction, we will mask different set of individuals in each environment, so each individual maintains input data in at least some individuals.
+
+```{r}
+set.seed(1592)
+k_fold = 5 #
+fold_ID_matrix = matrix(NA,nrow = nrow(yldWide),ncol = ncol(yldWide),dimnames = dimnames(yldWide)) # empty matrix with same dimensions as the Y data matrix
+# loop through each environment independently 
+for(i in 1:ncol(fold_ID_matrix)) { 
+  # keep only rows (samples) where there is data in that column (environment)
+  observed_lines = sample_data[!is.na(yldWide[,i]), , drop = FALSE]
+  n_lines = nrow(observed_lines) # get the number of samples with data for environment 
+  # randomly assign each line to a fold
+  observed_lines$fold = sample(rep(1:k_fold,(n_lines/k_fold)+1))[1:n_lines]
+  # add fold assignment to matrix 
+  fold_ID_matrix[match(observed_lines$germplasmName,rownames(fold_ID_matrix)),i] = observed_lines$fold
+}
+```
+
+```{r}
+# really really long run time (24+hr)
+runID <- paste0("output/megaLMM/allLOC_2023-2024/", runID)
+testTrials <- sample(trialNames, 72)
+for (trialName in testTrials){
+  for (fold_ID in 1:k_fold){
+    yldTrain = yldTest = yldWide
+    yldTrain[fold_ID_matrix == fold_ID] = NA
+    yldTest[fold_ID_matrix != fold_ID | is.na(fold_ID_matrix)] = NA
+
+    MegaLMM_state <- setupMegaLMMstate(accNames=accNamesTib, wideData=yldTrain,
+                                      kinMat=GRM, runID=runID) # try different things here for wideData
+
+    # Burn in
+    n_iter <- 200
+    for (i in 1:6){
+      cat(i)
+      # Manually re-order from biggest to smallest
+      MegaLMM_state <- reorder_factors(MegaLMM_state, drop_cor_threshold = 0.6)
+     # Clear previous collected samples because we've re-started the chain 
+      MegaLMM_state <- clear_Posterior(MegaLMM_state)
+     # Draw n_iter new samples, storing the chain
+      MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+   }
+    cat("\n")
+    MegaLMM_state <- clear_Posterior(MegaLMM_state)
+  
+    # Sampling
+    n_iter = 10000
+    MegaLMM_state <- sample_MegaLMM(MegaLMM_state, n_iter, verbose=F)
+    MegaLMM_state <- save_posterior_chunk(MegaLMM_state)
+    saveRDS(MegaLMM_state, file = here::here("output", "megaLMM", "allLOC_2023-2024", paste0(seed, "MegaLMM_state.rds")))
+
+    Lambda_samples = load_posterior_param(MegaLMM_state,'Lambda')
+    Lambda_hat <- get_posterior_mean(Lambda_samples)
+    U_samples = load_posterior_param(MegaLMM_state,'U_CV2')
+    U_hat = get_posterior_mean(U_samples)
+    Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
+  
+    # identify held-out (test) observations for this trial & fold
+    testIdx <- is.na(yldTrain[, trialName]) & !is.na(yldWide[, trialName])
+    obsYld   <- yldWide[testIdx, trialName]
+    predGen  <- U_hat[testIdx, trialName]
+    predPhen <- Eta_mean[testIdx, trialName]
+    Uhat_accuracy <- cor(obsYld, predGen)
+    Eta_mean_accuracy <- cor(obsYld, predPhen)
+  
+    allLambdaPost <- rbind(allLambdaPost, Lambda_hat)
+    toAdd <- tibble(trial=trialName, accVec=list(names(obsYld)), 
+                    genAcc=Uhat_accuracy, phenAcc=Eta_mean_accuracy)
+    allCorr <- bind_rows(allCorr, toAdd)
+  }#END CV
+  saveRDS(list(allLambdaPost=allLambdaPost, allCorr=allCorr), 
+        file=here::here("output", "megaLMM", "allLOC_2023-2024", paste0(seed, "MegaLMMresults.rds")))
+} #END TRIAL
+# save files used in posterior eval
+saveRDS(yldTest, file = here::here(runID, "Y_testing.rds"))
+saveRDS(yldTrain, file = here::here(runID, "Y_training.rds"))
+saveRDS(yldWide, file = here::here(runID, "pheno_input.rds"))
+```
+
+#### Run cross validation #### OLD
 The idea here is, per trial, to leave N lines in the trial and predict the
 remaining lines.  This is a case where we are predicting old accessions in 
 old environments.
@@ -278,6 +358,7 @@ print(MegaLMM_state)
 summary(MegaLMM_state)
 ```
 
+
 # Run univariate GBLUP as reference
 
 To evaluate whether the multi-trait prediction from `MegaLMM` is useful, we'll run normal univariate genomic prediction using the GBLUP model using the `rrBLUP` package.
@@ -298,18 +379,21 @@ for(i in 1:ncol(yldWide)) {
 Reload if coming back 
 
 ```{r}
+# MegaLMM_state = readRDS(here::here('output', 'megaLMM', 'allLOC_2023-2024', '1592MegaLMM_state.rds'))
+# rrBLUP_predictions = readRDS(here::here('output', 'megaLMM', 'allLOCgBLUP_2023-2024', '1592rrBLUPresults.rds'))
+
+# yldTest <- readRDS(here::here("output", "megaLMM", "allLOC_2023-2024", "2023-2024_1592", "Y_testing.rds"))
+# yldTrain <- readRDS(here::here("output", "megaLMM", "allLOC_2023-2024", "2023-2024_1592", "Y_training.rds"))
+# yldWide <- readRDS(here::here("output", "megaLMM", "allLOC_2023-2024", "2023-2024_1592", "pheno_input.rds"))
+```
+Old
+```{r}
 # MegaLMM_state = readRDS(here::here('output', 'megaLMM', 'allLOC_2023-2024', '4863MegaLMM_state.rds'))
 # rrBLUP_predictions = readRDS(here::here('output', 'megaLMM', 'allLOCgBLUP_2023-2024', '4863rrBLUPresults.rds'))
 
 # yldTest <- readRDS(here::here("output", "megaLMM", "allLOC_2023-2024", "2023-2024_4863", "Y_testing.rds"))
 # yldTrain <- readRDS(here::here("output", "megaLMM", "allLOC_2023-2024", "2023-2024_4863", "Y_training.rds"))
 # yldWide <- readRDS(here::here("output", "megaLMM", "allLOC_2023-2024", "2023-2024_4863", "pheno_input.rds"))
-```
-
-Here are the correlations between the rBLUP predictions and the testing data:
-
-```{r}
-diag(cor(yldTest,rrBLUP_predictions,use='p'))
 ```
 
 # Working with postierior samples
@@ -336,11 +420,14 @@ dim(U_HPD)
 
 Prediction Accuracy 
 
+Within location, correlates the predicted oat values to the real oat values. Gives an accuracy of those predictions for each environment. 
+
 ```{r}
 Eta_mean = load_posterior_param(MegaLMM_state,'Eta_mean')
 
-MegaLMM_Uhat_accuracy = diag(cor(yldTest,U_hat,use='p')) # should this be the whole data set (yldWide) or the Test set (the ones masked in to train)? 
-MegaLMM_Eta_mean_accuracy = diag(cor(yldTest,Eta_mean,use='p'))
+MegaLMM_Uhat_accuracy = diag(cor(yldWide,U_hat,use='p')) # should this be the whole data set (yldWide) or the Test set (the ones masked in to train)? 
+MegaLMM_Eta_mean_accuracy = diag(cor(yldWide,Eta_mean,use='p'))
+
 hist(MegaLMM_Uhat_accuracy)
 hist(MegaLMM_Eta_mean_accuracy)
 ```
@@ -348,7 +435,7 @@ hist(MegaLMM_Eta_mean_accuracy)
 Let's compare the accuracy of `MegaLMM's` predictions (`U_hat` or `Eta_mean`) to those of `rrBLUP`:
 
 ```{r}
-rrBLUP_accuracy = diag(cor(yldTest,rrBLUP_predictions,use='p'))
+rrBLUP_accuracy = diag(cor(yldWide,rrBLUP_predictions,use='p')) # Here are the correlations between the rBLUP predictions and the testing data
 plot(rrBLUP_accuracy,MegaLMM_Uhat_accuracy);abline(0,1) # saved as output/MegaLMM/allLOC_2023-2024/figures/Prediction_Accuracy_Comparison
 plot(rrBLUP_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
 plot(MegaLMM_Uhat_accuracy,MegaLMM_Eta_mean_accuracy);abline(0,1)
@@ -379,13 +466,18 @@ dim(R_samples)
 ```
 
 compare predicted values to the observed values 
+
+Plot every observed oat value against the predicted value (visual of the correlation used for prediction accuracy)
+
 ```{r}
 plot(U_hat,yldWide);abline(0,1) #saved as output/MegaLMM/allLOC_2023-2024/figures/Obs_PredUhat_Comparison 
 plot(Eta_mean,yldWide);abline(0,1) #saved as output/MegaLMM/allLOC_2023-2024/figures/Obs_PredEta_Comparison
 ```
 
+generally follows abline (so often high correlation). Interestingly many points far off line. Was cross validation not enough? Is there too much missing info? 
+
 ```{r}
-rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy, rrBLUP_predictions, rrBLUP_accuracy, GRM, allLambdaPost, Eta_mean, Lambda_hat, res, X, Y2, cvFold, Eta_mean_accuracy, i, Lambda_samples, MegaLMM_Eta_mean_accuracy, n_iter, nAccInTrial, nCVfolds, obsYld, predGen, predPhen, setMissing, trialName)
+rm(yield_data3,accNames,nAcc,trialNames,nTrials,data_matrices,sample_data,yldWide,accNamesTib,seed,runID,testTrials,MegaLMM_state,MegaLMM_Uhat_accuracy, U, U_hat, U_HPD, P_samples, G_samples, R_samples, yldTest, yldTrain, U_samples, Uhat_accuracy, rrBLUP_predictions, rrBLUP_accuracy, GRM, allLambdaPost, Eta_mean, Lambda_hat, res, X, Y2, cvFold, Eta_mean_accuracy, i, Lambda_samples, MegaLMM_Eta_mean_accuracy, n_iter, nAccInTrial, nCVfolds, obsYld, predGen, predPhen, setMissing, trialName, fold_ID, k_fold, n_lines, testIdx, fold_ID_matrix)
 ```
 
 

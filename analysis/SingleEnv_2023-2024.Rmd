@@ -444,6 +444,8 @@ yldWide <- yldWide[, apply(yldWide, 2,
 all(rownames(GRM2) %in% sample_data$germplasmName)
 GRM = GRM2[sample_data$germplasmName,sample_data$germplasmName] # fit GRM based on oats in the data
 all(rownames(GRM) %in% sample_data$germplasmName)
+
+Image(as.matrix(table(yield_data3$germplasmName,yield_data3$peaAcc))) + theme(legend.position = 'none') + xlab('Environment') + ylab('germplasmName')
 ```
 
 #### Set up results objects
@@ -683,6 +685,8 @@ yldWide <- yldWide[, apply(yldWide, 2,
 all(rownames(GRM2) %in% sample_data$germplasmName)
 GRM = GRM2[sample_data$germplasmName,sample_data$germplasmName] # fit GRM based on oats in the data
 all(rownames(GRM) %in% sample_data$germplasmName)
+
+Image(as.matrix(table(yield_data3$germplasmName,yield_data3$peaAcc))) + theme(legend.position = 'none') + xlab('Environment') + ylab('germplasmName')
 ```
 
 #### Set up results objects
@@ -921,6 +925,8 @@ yldWide <- yldWide[, apply(yldWide, 2,
 all(rownames(GRM2) %in% sample_data$germplasmName)
 GRM = GRM2[sample_data$germplasmName,sample_data$germplasmName] # fit GRM based on oats in the data
 all(rownames(GRM) %in% sample_data$germplasmName)
+
+Image(as.matrix(table(yield_data3$germplasmName,yield_data3$peaAcc))) + theme(legend.position = 'none') + xlab('Environment') + ylab('germplasmName')
 ```
 
 #### Set up results objects
@@ -951,7 +957,7 @@ for (trialName in testTrials){
     yldTrain <- yldWide
     yldTest <- yldWide
     nAccInTrial <- sum(!is.na(yldTrain[, trialName]))
-    setMissing <- sample(nAccInTrial, size=nAccInTrial / 2 , replace=F)
+    setMissing <- sample(nAccInTrial, size=nAccInTrial / 2 , replace=F) # dropping all environments 
     yldTrain[!is.na(yldTrain[, trialName]), trialName][setMissing] <- NA
     yldTest[which(!is.na(yldTest[, trialName]))[-setMissing], trialName] <- NA
 
