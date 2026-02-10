@@ -284,7 +284,7 @@ summary(anova_model)
 
 
 
-```{f}
+```{r}
 #Calculate mean and standard deviation:
 ##group  data by oat Genotype and then calculate the mean and standard deviation of pea yield
 summary_stats_pea <- mulit_location_data %>%
@@ -322,7 +322,7 @@ model2 <- lm(pea_yield ~ germplasmName * peaName + location, data = data)
 summary(model2)
 
 # You can also use an ANOVA to see if the interaction or main effects are significant
-anova_model2 <- aov(pea_yield ~ germplasmName * germplasmName + location, data = data)
+anova_model2 <- aov(pea_yield ~ germplasmName * peaName + location, data = data)
 summary(anova_model2)
 
 ```

@@ -39,136 +39,10 @@ library(knitr)
 
 ## load in and manipulate data files
 ```{r,  include=FALSE, warning=FALSE}
+multi_location_data <- read.csv("data/2023_2024_multi_location.csv")
 
-
-
-meta2023 <- read_csv("data/2023_plot_meta.csv") %>%
-  select(peaName, pea_type) %>%
-  distinct(peaName, .keep_all = TRUE)
-
-#WI 2023
-Wisconsin23 <- read_excel("data/2023_multi_location_data.xlsx",
-                                  sheet = "Wisconsin", skip = 2) %>%
-  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
-  mutate(pea_yield = as.numeric(`Pea grain yield - g/m2|COMP:0000049`)) %>%
-  mutate(total_grain = (oat_yield + pea_yield))%>%
-  mutate(studyLoc = "WI") %>%
-  left_join(meta2023, by = "peaName") %>%
-  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, peaName, pea_type, observationLevel, observationUnitName, oat_yield, pea_yield, total_grain) %>% 
-  filter(plotNumber != 51)  ### plot 51 looks to have yield of oat and pea switched, removed for now
-
-#NY 2023
-NewYork23pt1 <- read_excel("data/2023_oat_pea_data.xlsx", sheet = "diversity") %>%
-  select(plot_id, Biomass_1_oat_g, Biomass_2_oat_g, Biomass_3_oat_g, Biomass_4_oat_g, 
-         Biomass_1_pea_g, Biomass_2_pea_g, Biomass_3_pea_g, Biomass_4_pea_g)
-
-NewYork23 <- read_excel("data/2023_multi_location_data.xlsx",
-                        sheet = "Cornell", skip = 2)%>%
-  filter(plotNumber != "27") %>%
-  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
-  mutate(pea_yield = as.numeric(`Pea grain yield - g/m2|COMP:0000049`)) %>%
-  mutate(total_grain = (oat_yield + pea_yield))%>%
-  mutate(studyLoc = "NY") %>%
-  mutate(plot_id = observationUnitDbId) %>%
-  mutate(Lodging = `Lodging severity - 0-9 Rating|day 221|COMP:0000018`) %>%
-  
-  left_join(NewYork23pt1, by="plot_id") %>%
-
-  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, peaName, pea_type, observationLevel, observationUnitName, oat_yield, pea_yield, total_grain)
-# remove rows where there is no grain yield (53,66)
-NewYork23<-NewYork23[-c(53,66),]
-
-#NY 2024
-NewYork24 <- read.csv("data/2024_NY_SpringOatPea_cleaned.csv") %>%
-  mutate(studyLoc = "NY") %>%
-  mutate(oat_yield = oat_grain_yield) %>%
-  mutate(pea_yield = pea_grain_yield) %>%
-  mutate(total_grain = (oat_yield + pea_yield))%>%
-  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, peaName, pea_type, observationLevel, observationUnitName, oat_yield, pea_yield, total_grain)
-#NY Combined Years
-NewYork <- rbind(NewYork23, NewYork24)
-NewYork <- NewYork[NewYork$observationLevel == "plot",]
-
-#IL 2023
-Illinois23 <- read_excel("data/2023_multi_location_data.xlsx",
-                      sheet = "Illinois", skip = 2)%>%
-  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
-  mutate(pea_yield = as.numeric(`Pea grain yield - g/m2|COMP:0000049`)) %>%
-  mutate(total_grain = (oat_yield + pea_yield))%>%
-  
-  mutate(studyLoc = "IL") %>%
-  
-  left_join(meta2023, by = "peaName") %>%
-
-  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, peaName, pea_type, observationLevel, observationUnitName, oat_yield, pea_yield, total_grain)
-
-#IL 2024
-Illinois24 <- read.csv("data/SpringOatPeaIntercrop_2024_IL_phenotypes.csv") %>%
-  mutate(oat_yield = as.numeric(`Grain.yield...g.m2.CO_350.0000260`)) %>%
-  mutate(pea_yield = as.numeric(`Pea.grain.yield...g.m2.COMP.0000049`)) %>%
-  mutate(total_grain = (oat_yield + pea_yield))%>%
-  mutate(studyLoc = "IL")
-  
-colnames(Illinois24)[41:52] <- sub(".*_", "", colnames(Illinois24)[41:52])
-
-Illinois24[, 41:52] <- lapply(names(Illinois24)[41:52], function(col) {
-  ifelse(Illinois24[[col]] == 1, col, NA)
-})
-
-Illinois24$peaName <- apply(Illinois24[, 41:52], 1, function(x) {
-  na.omit(x)[1]
-})
-
-Illinois24 <- Illinois24 %>% 
-  mutate(peaName = gsub("\\.", " ", peaName)) %>%
-  left_join(meta2023, by = "peaName") %>%
-  mutate(pea_type = ifelse(is.na(pea_type) | pea_type == "", "monoculture", pea_type)) %>%
-
-  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, peaName, pea_type, observationLevel, observationUnitName, oat_yield, pea_yield, total_grain)
-
-# IL Combined Years
-Illinois <- rbind(Illinois23, Illinois24)
-
-#SD 2023
-SDSU23 <- read_excel("data/2023_multi_location_data.xlsx",
-                       sheet = "SDSU", skip = 2)%>%
-  mutate(oat_yield = as.numeric(`Grain yield - g/m2|CO_350:0000260`)) %>%
-  mutate(pea_yield = as.numeric(`Pea grain yield - g/m2|COMP:0000049`)) %>%
-  mutate(total_grain = (oat_yield + pea_yield))%>%
-  mutate(studyLoc = "SD") %>%
-  left_join(meta2023, by="peaName")%>%
-  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, peaName, pea_type, observationLevel, observationUnitName, oat_yield, pea_yield, total_grain)
-#SD 2024
-SDSU24 <- read.csv("data/SpringOatPeaIntercrop_2024_SD_phenotypes.csv")%>%
-  mutate(oat_yield = as.numeric(`Grain.yield...g.m2.CO_350.0000260`)) %>%
-  mutate(pea_yield = as.numeric(`Pea.grain.yield...g.m2.COMP.0000049`)) %>%
-  mutate(total_grain = (oat_yield + pea_yield))%>%
-  mutate(studyLoc = "SD")
-#  get pea names from correct columns and make one peaName column
-colnames(SDSU24)[40:51] <- sub(".*_", "", colnames(SDSU24)[40:51])
-
-SDSU24[, 40:51] <- lapply(names(SDSU24)[40:51], function(col) {
-  ifelse(SDSU24[[col]] == 1, col, NA)
-})
-
-SDSU24$peaName <- apply(SDSU24[, 40:51], 1, function(x) {
-  na.omit(x)[1]
-})
-
-SDSU24 <- SDSU24 %>% 
-  mutate(peaName = gsub("\\.", " ", peaName)) %>% #replace the . in the names with a space
-  left_join(meta2023, by = "peaName") %>%
-  mutate(pea_type = ifelse(is.na(pea_type) | pea_type == "", "monoculture", pea_type)) %>%
-
-  select(studyName, studyYear, studyLoc, replicate, blockNumber, rowNumber, colNumber, plotNumber, germplasmName, peaName, pea_type, observationLevel, observationUnitName, oat_yield, pea_yield, total_grain)
-# SD Combined Years
-SouthDakota <- rbind(SDSU23, SDSU24)
-
-
-multi_location_data <- bind_rows(Illinois,NewYork,SouthDakota,Wisconsin23) %>%
-  mutate(oat_fraction = oat_yield/(oat_yield +
-                         pea_yield))
-
+multi_location_data <- multi_location_data%>%
+  mutate(total_grain = oat_yield + pea_yield)
 ```
 
 ## chage data type (character,factor,numeric)
@@ -178,9 +52,7 @@ multi_location_data$studyName <- as.character(multi_location_data$studyName)
 multi_location_data$studyYear <- as.factor(multi_location_data$studyYear)
 multi_location_data$studyLoc <- as.factor(multi_location_data$studyLoc)
 multi_location_data$replicate <- as.factor(multi_location_data$replicate)
-multi_location_data$blockNumber <- as.factor(multi_location_data$blockNumber)
-multi_location_data$rowNumber <- as.factor(multi_location_data$rowNumber)
-multi_location_data$colNumber <- as.factor(multi_location_data$colNumber)
+#multi_location_data$rowNumber <- as.factor(multi_location_data$rowNumber)
 multi_location_data$plotNumber <- as.character(multi_location_data$plotNumber)
 multi_location_data$germplasmName <- as.character(multi_location_data$germplasmName)
 multi_location_data$peaName <- as.character(multi_location_data$peaName)
@@ -234,6 +106,50 @@ ggplot(multi_location_data, aes(x = log(pea_yield+0.1))) +
 rm(custom_colors)
 
 
+```
+
+## Grain Yield Box Plot
+```{r,  echo=FALSE, warning=FALSE}
+
+# can try grain yield and log grain yeild by changing following lines:
+  # ggplot(aes(grain_type, grain_g)) +
+  # geom_jitter(aes(grain_type, grain_g, color = pea_type), 
+
+multi_location_data %>%
+  pivot_longer(oat_yield:pea_yield,
+               names_to = "grain_type", values_to = "grain_g") %>%
+  mutate(grain_type = str_replace(grain_type, "_yield", "")) %>%
+  mutate(log_grain_g = log(grain_g)) %>%
+  
+  # Create a new column that combines location and year
+  mutate(location_year = paste(location, studyYear, sep = "_")) %>%
+  
+  ggplot(aes(grain_type, grain_g)) +
+  geom_boxplot() +
+  geom_jitter(aes(grain_type, grain_g, color = grain_type), 
+              width = 0.25, size = 4, alpha = 0.75) +
+  
+  xlab("") +
+  ylab("Grain Yield (g/m2)") +
+  scale_color_manual(values = hcl.colors(2, palette = "Fall")) +
+  #scale_color_brewer(palette = "Dark2") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+  theme(axis.text = element_text(size = 24), axis.title = element_text(size = 24, face = "bold")) +
+  theme(axis.text.x = element_text(face = "bold", color = "black", size = 20)) +
+  theme(axis.text.y = element_text(face = "bold", color = "black", size = 20)) +
+  
+  theme(strip.text = element_text(size = 20, face = "plain"),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 22, face = "plain")) +   # Adjust the subtitles and ledgend font size
+  
+  # Facet by both location and year
+  facet_wrap(~location_year, nrow = 3, ncol = 2)
+# saved as analysis/figures/Grain_Yield_oatpea 1200x1323
+```
+
+```{r}
+# significant difference by location, year, grain type
 ```
 
 ## PCA

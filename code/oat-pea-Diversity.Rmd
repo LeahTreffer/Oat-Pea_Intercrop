@@ -320,7 +320,7 @@ wide_biomass3 %>%
   theme(axis.text.y = element_text(face = "bold", color = "black", size = 16))
 
 
-write.csv(wide_biomass3, "data/2024_biomass_")
+# write.csv(wide_biomass3, "data/2024_biomass_")
 ```
 
 ```{r include=FALSE, echo=FALSE}
