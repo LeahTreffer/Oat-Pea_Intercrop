@@ -474,6 +474,57 @@ plot(U_hat,yldWide);abline(0,1) #saved as output/MegaLMM/allLOC_2023-2024/figure
 plot(Eta_mean,yldWide);abline(0,1) #saved as output/MegaLMM/allLOC_2023-2024/figures/Obs_PredEta_Comparison
 ```
 
+```{r}
+## Calibration (is the regression line equal to 1:1)
+## Accuracy (how close are predictions to observations)
+# fix oat rownames
+rownames(U_hat) <- sub("::.*", "", rownames(U_hat))
+# align U_hat and YldWide
+U_hat <- U_hat[rownames(yldWide), colnames(yldWide)]
+# fit linear
+df <- data.frame(
+  obs  = as.vector(yldWide),
+  pred = as.vector(U_hat)
+)
+df <- na.omit(df) # U_hat also includes predicted values, can only plot what was in both YldWide and U_hat
+fit <- lm(obs ~ pred, data = df) # Observed_Yield=β0+β1×U_hat 
+summary(fit)
+
+slope <- coef(fit)[2]
+intercept <- coef(fit)[1]
+r2 <- summary(fit)$r.squared
+eq <- paste0("Observed = ",
+             round(intercept, 3),
+             " + ",
+             round(slope, 3),
+             " × Predicted",
+             "\nR² = ",
+             round(r2, 3))
+correlation <- cor(df$pred, df$obs)
+b0 <- coef(fit)[1]
+b1 <- coef(fit)[2]
+
+plot(df$pred, df$obs,
+     xlab = "Predicted (U_hat)",
+     ylab = "Observed Yield");abline(0,1)
+legend("topleft",
+       legend = c(
+         paste0("R² = ", round(r2, 3)),
+         paste0("Correlation = ", round(correlation, 3))
+       ),
+       bty = "n")
+
+# slope bias: <0 = shrinkage, >0 = overdispersion 
+b1 - 1
+# 0.9292314 : high predicted values are underestimated and low predicted values are overestimated, meaning the model is under-shrinking extremes
+# calibration test : sig pval = different than 1:1
+linearHypothesis(fit, c("(Intercept)=0", "pred=1"))
+# RMSE = root mean squre error : average size of prediction errors
+# deviation from 1:1; RMSE between the fitted regression line and the 1:1 line
+sqrt(mean((b0 + (b1 - 1)*df$pred)^2)) 
+# overall prediction error RMSE 
+sqrt(mean((df$obs - df$pred)^2)) # On average, predictions are off by about X yield units
+```
 generally follows abline (so often high correlation). Interestingly many points far off line. Was cross validation not enough? Is there too much missing info? 
 
 ```{r}
