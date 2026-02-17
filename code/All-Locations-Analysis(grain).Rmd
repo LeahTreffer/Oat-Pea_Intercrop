@@ -149,7 +149,39 @@ multi_location_data %>%
 ```
 
 ```{r}
+library(lmerTest)
+library(flextable)
+library(multcomp)
+custom_letters <- c("a", "b", "c", "d", "e", "f", "g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z")
+
+df_long <- multi_location_data %>%
+  pivot_longer(
+    cols = c(oat_yield, pea_yield),  # columns to combine
+    names_to = "species",            # new column for original column names
+    values_to = "grain_yield"        # new column for the values
+  ) %>%
+  mutate(species = sub("_yield", "", species))  # clean species names
+
 # significant difference by location, year, grain type
+model <- lmer(grain_yield ~ studyYear*studyLoc*species +(1|replicate), data=df_long)
+aov.table <- anova(model)
+table = flextable(data = aov.table %>%
+                    mutate(`Pr(>F)` = formatC(`Pr(>F)`, format = "e", digits = 2))%>% 
+                    dplyr::select(`NumDF`, `Pr(>F)`) %>%
+                    rownames_to_column(" "))
+bold(table, bold = TRUE, part = "header")
+emm <- emmeans(model, list(pairwise ~ species|studyYear*studyLoc), adjust = "tukey") # significant differences among species groups within each Year × Location
+emm <- emmeans(model, list(pairwise ~ studyLoc|studyYear*species), adjust = "tukey") # significant differences among locations within each species × Year
+emm <- emmeans(model, list(pairwise ~ studyYear|studyLoc*species), adjust = "tukey") # significant differences among years within each species × Location
+
+# Three-way estimated means
+emm <- emmeans(model, ~ species*studyYear*studyLoc)
+# Tukey pairwise comparisons across ALL groups
+
+cld <- cld(emm, Letters = letters, adjust = "tukey")
+rownames(cld) <- NULL
+cld<- cld %>%
+  dplyr::select(species, studyYear, studyLoc, emmean, .group)
 ```
 
 ## PCA
