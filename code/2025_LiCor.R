@@ -407,25 +407,32 @@ totLI_crop <- ggplot(LiCor2, aes(x = Timepoint, y = plotlvl_tot_LI, colour = Cro
 # Oat_biomass
 # Pea_Biomass
 # Weed_Biomass
-LiCor2 <- LiCor %>%
-  group_by(Timepoint, plot_number, Crop, Oat_biomass, Pea_Biomass, Weed_Biomass)%>%
-  summarize(plotlvl_tot_LI = mean(adjTotLI, na.rm=TRUE))
+# transformed because normal broke equal variance assumption
 
-modeloat<- lmer(Oat_biomass ~ plotlvl_tot_LI * Timepoint * Crop + (1|plot_number), data=LiCor2)
+LiCor2 <- LiCor %>%
+  group_by(plot_number, Timepoint) %>%
+  summarise(
+    plotlvl_tot_LI = mean(adjTotLI, na.rm = TRUE),
+    across(c(Oat_biomass, Pea_Biomass, Weed_Biomass, Crop),
+           ~ if (all(is.na(.))) NA else first(na.omit(.))),
+    .groups = "drop"
+)
+
+modeloat<- lmer(log(Oat_biomass) ~ plotlvl_tot_LI * Timepoint * Crop + (1|plot_number), data=LiCor2)
   oat_resid<-resid(modeloat)
   qqnorm(oat_resid)
   qqline(oat_resid)
   plot(modeloat)
 anova(modeloat)
+# log transformed: oat biomass differed by Timepoint, almost sig three way interaction
+# linear: no effects
 
-modelpea<- lmer(Pea_Biomass ~ plotlvl_tot_LI * Timepoint * Crop + (1|plot_number), data=LiCor2)
+modelpea<- lmer(log(Pea_Biomass) ~ plotlvl_tot_LI * Timepoint * Crop + (1|plot_number), data=LiCor2)
   pea_resid<-resid(modelpea)
   qqnorm(pea_resid)
   qqline(pea_resid)
   plot(modelpea)
 anova(modelpea)
-# pea biomass did differ by plot level light interception
-# almost differed by LI * Timepoint
 
 modelweed <- lmer(sqrt(Weed_Biomass) ~ plotlvl_tot_LI * Timepoint * Crop + (1|plot_number), data=LiCor2)
   weed_resid<-resid(modelweed)
@@ -433,41 +440,89 @@ modelweed <- lmer(sqrt(Weed_Biomass) ~ plotlvl_tot_LI * Timepoint * Crop + (1|pl
   qqline(weed_resid)
   plot(modelweed)
   anova(modelweed)
-# transformed because normal broke equal varience assumption
+# weed biomass almost significant different by Timepoint * Crop
 
-#EQUATION tables JUST plotlvl_tot_LI (sig from anova)
-emtrends_result<-emtrends(modelpea,~ 1, var= "plotlvl_tot_LI", infer=TRUE)
-emtrends_df <- as.data.frame(emtrends_result)
-emtrends_df$plvl <-
-  ifelse(emtrends_df$p.value == 0.05, ".",
-  ifelse(emtrends_df$p.value < 0.05  & emtrends_df$p.value >= 0.01, "*",
-  ifelse(emtrends_df$p.value < 0.01  & emtrends_df$p.value >= 0.001, "**",
-  ifelse(emtrends_df$p.value < 0.001, "***", ""))))
-emmeans_results<-emmeans(modelpea, ~1, at=list(N=0))
-emmeans_df <- as.data.frame(emmeans_results)
-emtrends_df <- emtrends_df %>% mutate(key = 1)
-emmeans_df <- emmeans_df %>% mutate(key = 1)
-merged_df <- inner_join(emtrends_df, emmeans_df, by = "key")%>%
-  dplyr::select(emmean, plotlvl_tot_LI.trend, SE.x, plvl)
-new_df <- merged_df %>%
-  mutate(equation = sprintf("=%.2f+(%.4f)", emmean, plotlvl_tot_LI.trend),  SE.x = sprintf("%.4f", SE.x),  percent_change = sprintf("%.2f%%", plotlvl_tot_LI.trend / emmean * 100))%>%
-  dplyr::select(-emmean, -plotlvl_tot_LI.trend)
-new_df
 
-# relationship of pea biomass to plot LI
-ggplot(LiCor2, aes(x = plotlvl_tot_LI, y = Pea_Biomass)) +
-  geom_point(color='black') + #geom_line(aes(N, exp(predicted)))+ #regression through backtransformed predicted values
-  #use function from new_df calculated above
-  geom_function(data=LiCor2, fun=~215.06+(7.4468*.x),color='black')+
-  labs(x = "Light Interception (%)", y = "Pea Biomass (g)") +  # Label the axes
-  #  ggtitle("Year 2 Summer Relationship between Total LER and N-rate \nbacktransformed for visualization") +  # Add a title
-  #scale_x_continuous(breaks = c(0, 40, 80, 120, 160))+ #fix x axis scale
-  ylim(0, 630) +
-  #geom_abline(intercept = 1, slope = 0, color = "darkgrey", linetype = "longdash")+
-  geom_text(data = new_df, mapping = aes(x = 15, y = 600, label = equation),  size=5)+ # add equation to figure
-  geom_text(data = new_df, mapping = aes(x = 35, y = 600, label = plvl),  size=5)+ # add equation to figure
-  theme(axis.text=element_text(size=14), #change font size of axis text
-        axis.title=element_text(size=18)) #change font size of axis titles
+
+
+LiCorT2 <- LiCor2 %>% filter(Timepoint=="1")
+
+modeloaT1<- lm(Oat_biomass ~ plotlvl_tot_LI * Crop, data=LiCorT1)
+  oaT1_resid<-resid(modeloaT1)
+  qqnorm(oaT1_resid)
+  qqline(oaT1_resid)
+  plot(modeloaT1)
+  anova(modeloaT1)
+  # light interception and cropping system were significant individually but not as an interaction
+
+modelpeaT1<- lm(Pea_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT1)
+  peat1_resid<-resid(modelpeaT1)
+  qqnorm(peat1_resid)
+  qqline(peat1_resid)
+  plot(modelpeaT1)
+  anova(modelpeaT1)
+  # light interception was significant
+
+modelweedT1<- lm(Weed_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT1)
+  weedT1_resid<-resid(modelweedT1)
+  qqnorm(weedT1_resid)
+  qqline(weedT1_resid)
+  plot(modelweedT1)
+  anova(modelweedT1)
+  # LI * Crop interaction was significant
+
+LiCorT2 <- LiCor2 %>% filter(Timepoint=="2")
+
+modeloaT2<- lm(Oat_biomass ~ plotlvl_tot_LI * Crop, data=LiCorT2)
+  oaT2_resid<-resid(modeloaT2)
+  qqnorm(oaT2_resid)
+  qqline(oaT2_resid)
+  #plot(modeloaT2)
+  anova(modeloaT2)
+  # cropping system was significant
+
+modelpeaT2<- lm(Pea_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT2)
+  pea1_resid<-resid(modelpeaT2)
+  qqnorm(pea1_resid)
+  qqline(pea1_resid)
+  #plot(modelpeaT2)
+  anova(modelpeaT2)
+  # light interception was significant
+
+modelweedT2<- lm(Weed_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT2)
+  weed1_resid<-resid(modelweedT2)
+  qqnorm(weed1_resid)
+  qqline(weed1_resid)
+  #plot(modelweedT2)
+  anova(modelweedT2)
+  # LI was significant
+
+
+LiCorT3 <- LiCor2 %>% filter(Timepoint=="3")
+
+modeloaT3<- lm(Oat_biomass ~ plotlvl_tot_LI * Crop, data=LiCorT3)
+  oaT3_resid<-resid(modeloaT3)
+  qqnorm(oaT3_resid)
+  qqline(oaT3_resid)
+  #plot(modeloaT3)
+  anova(modeloaT3)
+# LI was significant
+
+modelpeaT3<- lm(Pea_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT3)
+  peaT3_resid<-resid(modelpeaT3)
+  qqnorm(peaT3_resid)
+  qqline(peaT3_resid)
+  #plot(modelpeaT3)
+  anova(modelpeaT3)
+# cropping system was significant
+
+modelweedT3<- lm(Weed_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT3)
+  weedT3_resid<-resid(modelweedT3)
+  qqnorm(weedT3_resid)
+  qqline(weedT3_resid)
+  #plot(modelweedT3)
+  anova(modelweedT3)
+# cropping system was significant
 
 
 
