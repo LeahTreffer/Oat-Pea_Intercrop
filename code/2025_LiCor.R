@@ -439,73 +439,111 @@ modelweed <- lmer(sqrt(Weed_Biomass) ~ plotlvl_tot_LI * Timepoint * Crop + (1|pl
   qqnorm(weed_resid)
   qqline(weed_resid)
   plot(modelweed)
-  anova(modelweed)
+anova(modelweed)
 # weed biomass almost significant different by Timepoint * Crop
 
+# Oat Biomass T
+custom_letters <- c("a", "b", "c", "d", "e", "f", "g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z")  # Customize the letters as needed
+emms <- emmeans(modeloat, ~ Timepoint, type = "response") # Obtain estimated marginal means
+emms_df <- as.data.frame(summary(emms))
+cld_data <- cld(emms, Letters=custom_letters)
+cld_df <-as.data.frame(cld_data)
+merged_df <- merge(emms_df, cld_df,by = c("Timepoint"))
+totLI_oatT <- ggplot(LiCor2, aes(x = Timepoint, y = Oat_biomass)) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +
+  geom_text(data = merged_df, aes(x = Timepoint, y = response.x, label = .group),
+            position = position_dodge(width = 0.8),
+            vjust = -0.5,  # slightly above each box
+            size = 5)+      # font size
+  labs(title = "Relationship of Oat Biomass and Timepoint", x = "Timepoint", y = "Oat Biomass (g)")+
+  theme(axis.text=element_text(size=14), #change font size of axis text
+        axis.title=element_text(size=18))
+# Oat Biomass T:L:C (not significant)
+totLI_oatTLC <- ggplot(LiCor2) +
+  geom_point(aes(x = plotlvl_tot_LI, y = Oat_biomass, shape = Crop), size=5) +
+  facet_wrap(~Timepoint, scales = "fixed", labeller = label_both, ncol = 3) +
+  scale_shape_manual(values = c(1, 18, 12),labels = c("Oat Monoculture","Pea Monoculture", "Intercrop"))+
+  labs(title = "Relationship of Oat Biomass to Total Light Interception to Cropping System and Timepoint", x = "Light Interception (%)", y = "Oat Biomass (g)")+
+  theme(axis.text=element_text(size=14), #change font size of axis text
+        axis.title=element_text(size=18),
+        legend.text=element_text(size=12), #change font size of legend text
+        legend.title=element_text(size=16), #change font size of legend title
+        strip.text.x = element_text(size = 18),
+        legend.key.width = unit(1.5, "cm")) #change font size of facet title)
 
+# Weed Biomass T:C (not significant)
+totLI_weedTC <- ggplot(LiCor2) +
+  geom_boxplot(aes(x = Timepoint, y = Weed_Biomass, fill = Crop)) +
+  scale_fill_manual(values = c("#DDCC77", "#882255", "#117733"),labels = c("Oat Monoculture","Pea Monoculture", "Intercrop"))+
+  labs(title = "Relationship of Weed Biomass and Timepoint Cropping System", x = "Timepoint", y = "Weed Biomass (g)")+
+  theme(axis.text=element_text(size=14), #change font size of axis text
+        axis.title=element_text(size=18),
+        legend.text=element_text(size=12), #change font size of legend text
+        legend.title=element_text(size=16), #change font size of legend title
+        legend.key.width = unit(1.5, "cm")) #change font size of facet title)
 
+## Linear Models of each Timepoint Individually
 
-LiCorT2 <- LiCor2 %>% filter(Timepoint=="1")
+LiCorT1 <- LiCor2 %>% filter(Timepoint=="1")
 
-modeloaT1<- lm(Oat_biomass ~ plotlvl_tot_LI * Crop, data=LiCorT1)
-  oaT1_resid<-resid(modeloaT1)
+modeloatT1<- lm(Oat_biomass ~ plotlvl_tot_LI * Crop, data=LiCorT1)
+  oaT1_resid<-resid(modeloatT1)
   qqnorm(oaT1_resid)
   qqline(oaT1_resid)
-  plot(modeloaT1)
-  anova(modeloaT1)
-  # light interception and cropping system were significant individually but not as an interaction
+  #plot(modeloatT1)
+anova(modeloatT1)
+# light interception and cropping system were significant individually but not as an interaction
 
 modelpeaT1<- lm(Pea_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT1)
   peat1_resid<-resid(modelpeaT1)
   qqnorm(peat1_resid)
   qqline(peat1_resid)
-  plot(modelpeaT1)
-  anova(modelpeaT1)
-  # light interception was significant
+  #plot(modelpeaT1)
+anova(modelpeaT1)
+# light interception was significant
 
 modelweedT1<- lm(Weed_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT1)
   weedT1_resid<-resid(modelweedT1)
   qqnorm(weedT1_resid)
   qqline(weedT1_resid)
-  plot(modelweedT1)
-  anova(modelweedT1)
-  # LI * Crop interaction was significant
+  #plot(modelweedT1)
+anova(modelweedT1)
+# LI * Crop interaction was significant
 
 LiCorT2 <- LiCor2 %>% filter(Timepoint=="2")
 
-modeloaT2<- lm(Oat_biomass ~ plotlvl_tot_LI * Crop, data=LiCorT2)
-  oaT2_resid<-resid(modeloaT2)
+modeloatT2<- lm(Oat_biomass ~ plotlvl_tot_LI * Crop, data=LiCorT2)
+  oaT2_resid<-resid(modeloatT2)
   qqnorm(oaT2_resid)
   qqline(oaT2_resid)
-  #plot(modeloaT2)
-  anova(modeloaT2)
-  # cropping system was significant
+  #plot(modeloatT2)
+anova(modeloatT2)
+# cropping system was significant
 
 modelpeaT2<- lm(Pea_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT2)
   pea1_resid<-resid(modelpeaT2)
   qqnorm(pea1_resid)
   qqline(pea1_resid)
   #plot(modelpeaT2)
-  anova(modelpeaT2)
-  # light interception was significant
+anova(modelpeaT2)
+# light interception was significant
 
 modelweedT2<- lm(Weed_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT2)
   weed1_resid<-resid(modelweedT2)
   qqnorm(weed1_resid)
   qqline(weed1_resid)
   #plot(modelweedT2)
-  anova(modelweedT2)
-  # LI was significant
-
+anova(modelweedT2)
+# LI was significant
 
 LiCorT3 <- LiCor2 %>% filter(Timepoint=="3")
 
-modeloaT3<- lm(Oat_biomass ~ plotlvl_tot_LI * Crop, data=LiCorT3)
-  oaT3_resid<-resid(modeloaT3)
+modeloatT3<- lm(Oat_biomass ~ plotlvl_tot_LI * Crop, data=LiCorT3)
+  oaT3_resid<-resid(modeloatT3)
   qqnorm(oaT3_resid)
   qqline(oaT3_resid)
-  #plot(modeloaT3)
-  anova(modeloaT3)
+  #plot(modeloatT3)
+anova(modeloatT3)
 # LI was significant
 
 modelpeaT3<- lm(Pea_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT3)
@@ -513,7 +551,7 @@ modelpeaT3<- lm(Pea_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT3)
   qqnorm(peaT3_resid)
   qqline(peaT3_resid)
   #plot(modelpeaT3)
-  anova(modelpeaT3)
+anova(modelpeaT3)
 # cropping system was significant
 
 modelweedT3<- lm(Weed_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT3)
@@ -521,8 +559,197 @@ modelweedT3<- lm(Weed_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT3)
   qqnorm(weedT3_resid)
   qqline(weedT3_resid)
   #plot(modelweedT3)
-  anova(modelweedT3)
+anova(modelweedT3)
 # cropping system was significant
+
+
+
+aov.tableO1 <- anova(modeloatT1)
+tableO1 = flextable(data = aov.tableO1 %>%
+                      #filter(`Pr(>F)` < 0.05) %>%
+                      mutate(`Pr(>F)` = as.numeric(`Pr(>F)`),          # ensure numeric
+                             Signif = p_to_stars(`Pr(>F)`),            # add stars column
+                             `Pr(>F)` = formatC(`Pr(>F)`, digits = 3))%>%  # format p-value nicely %>%
+                      dplyr::select(`Pr(>F)`,Signif) %>%
+                      rename(`  ` = Signif) %>%
+                      rownames_to_column("term")%>%
+                      dplyr::mutate(term = dplyr::case_when(
+                        term == "plotlvl_tot_LI" ~ "Total LI",
+                        term == "Crop" ~ "Cropping System",
+                        term == "plotlvl_tot_LI:Crop" ~ "Total LI:Cropping System")))%>%
+                      set_header_labels(term = "")
+print(tableO1)
+
+aov.tableO2 <- anova(modeloatT2)
+tableO2 = flextable(data = aov.tableO2 %>%
+                      #filter(`Pr(>F)` < 0.05) %>%
+                      mutate(`Pr(>F)` = as.numeric(`Pr(>F)`),          # ensure numeric
+                             Signif = p_to_stars(`Pr(>F)`),            # add stars column
+                             `Pr(>F)` = formatC(`Pr(>F)`, digits = 3))%>%  # format p-value nicely %>%
+                      dplyr::select(`Pr(>F)`,Signif) %>%
+                      rename(`  ` = Signif) %>%
+                      rownames_to_column("term")%>%
+                      dplyr::mutate(term = dplyr::case_when(
+                        term == "plotlvl_tot_LI" ~ "Total LI",
+                        term == "Crop" ~ "Cropping System",
+                        term == "plotlvl_tot_LI:Crop" ~ "Total LI:Cropping System")))%>%
+                      set_header_labels(term = "")
+print(tableO2)
+
+aov.tableO3 <- anova(modeloatT3)
+tableO3 = flextable(data = aov.tableO3 %>%
+                      #filter(`Pr(>F)` < 0.05) %>%
+                      mutate(`Pr(>F)` = as.numeric(`Pr(>F)`),          # ensure numeric
+                             Signif = p_to_stars(`Pr(>F)`),            # add stars column
+                             `Pr(>F)` = formatC(`Pr(>F)`, digits = 3))%>%  # format p-value nicely %>%
+                      dplyr::select(`Pr(>F)`,Signif) %>%
+                      rename(`  ` = Signif) %>%
+                      rownames_to_column("term")%>%
+                      dplyr::mutate(term = dplyr::case_when(
+                        term == "plotlvl_tot_LI" ~ "Total LI",
+                        term == "Crop" ~ "Cropping System",
+                        term == "plotlvl_tot_LI:Crop" ~ "Total LI:Cropping System")))%>%
+  set_header_labels(term = "")
+print(tableO3)
+
+
+aov.tableP1 <- anova(modelpeaT1)
+tableP1 = flextable(data = aov.tableP1 %>%
+                      #filter(`Pr(>F)` < 0.05) %>%
+                      mutate(`Pr(>F)` = as.numeric(`Pr(>F)`),          # ensure numeric
+                             Signif = p_to_stars(`Pr(>F)`),            # add stars column
+                             `Pr(>F)` = formatC(`Pr(>F)`, digits = 3))%>%  # format p-value nicely %>%
+                      dplyr::select(`Pr(>F)`,Signif) %>%
+                      rename(`  ` = Signif) %>%
+                      rownames_to_column("term")%>%
+                      dplyr::mutate(term = dplyr::case_when(
+                        term == "plotlvl_tot_LI" ~ "Total LI",
+                        term == "Crop" ~ "Cropping System",
+                        term == "plotlvl_tot_LI:Crop" ~ "Total LI:Cropping System")))%>%
+  set_header_labels(term = "")
+print(tableP1)
+
+aov.tableP2 <- anova(modelpeaT2)
+tableP2 = flextable(data = aov.tableP2 %>%
+                      #filter(`Pr(>F)` < 0.05) %>%
+                      mutate(`Pr(>F)` = as.numeric(`Pr(>F)`),          # ensure numeric
+                             Signif = p_to_stars(`Pr(>F)`),            # add stars column
+                             `Pr(>F)` = formatC(`Pr(>F)`, digits = 3))%>%  # format p-value nicely %>%
+                      dplyr::select(`Pr(>F)`,Signif) %>%
+                      rename(`  ` = Signif) %>%
+                      rownames_to_column("term")%>%
+                      dplyr::mutate(term = dplyr::case_when(
+                        term == "plotlvl_tot_LI" ~ "Total LI",
+                        term == "Crop" ~ "Cropping System",
+                        term == "plotlvl_tot_LI:Crop" ~ "Total LI:Cropping System")))%>%
+  set_header_labels(term = "")
+print(tableP2)
+
+aov.tableP3 <- anova(modelpeaT3)
+tableP3 = flextable(data = aov.tableP3 %>%
+                      #filter(`Pr(>F)` < 0.05) %>%
+                      mutate(`Pr(>F)` = as.numeric(`Pr(>F)`),          # ensure numeric
+                             Signif = p_to_stars(`Pr(>F)`),            # add stars column
+                             `Pr(>F)` = formatC(`Pr(>F)`, digits = 3))%>%  # format p-value nicely %>%
+                      dplyr::select(`Pr(>F)`,Signif) %>%
+                      rename(`  ` = Signif) %>%
+                      rownames_to_column("term")%>%
+                      dplyr::mutate(term = dplyr::case_when(
+                        term == "plotlvl_tot_LI" ~ "Total LI",
+                        term == "Crop" ~ "Cropping System",
+                        term == "plotlvl_tot_LI:Crop" ~ "Total LI:Cropping System")))%>%
+  set_header_labels(term = "")
+print(tableP3)
+
+
+aov.tableW1 <- anova(modelweedT1)
+tableW1 = flextable(data = aov.tableW1 %>%
+                      #filter(`Pr(>F)` < 0.05) %>%
+                      mutate(`Pr(>F)` = as.numeric(`Pr(>F)`),          # ensure numeric
+                             Signif = p_to_stars(`Pr(>F)`),            # add stars column
+                             `Pr(>F)` = formatC(`Pr(>F)`, digits = 3))%>%  # format p-value nicely %>%
+                      dplyr::select(`Pr(>F)`,Signif) %>%
+                      rename(`  ` = Signif) %>%
+                      rownames_to_column("term")%>%
+                      dplyr::mutate(term = dplyr::case_when(
+                        term == "plotlvl_tot_LI" ~ "Total LI",
+                        term == "Crop" ~ "Cropping System",
+                        term == "plotlvl_tot_LI:Crop" ~ "Total LI:Cropping System")))%>%
+  set_header_labels(term = "")
+print(tableW1)
+
+aov.tableW2 <- anova(modelweedT2)
+tableW2 = flextable(data = aov.tableW2 %>%
+                      #filter(`Pr(>F)` < 0.05) %>%
+                      mutate(`Pr(>F)` = as.numeric(`Pr(>F)`),          # ensure numeric
+                             Signif = p_to_stars(`Pr(>F)`),            # add stars column
+                             `Pr(>F)` = formatC(`Pr(>F)`, digits = 3))%>%  # format p-value nicely %>%
+                      dplyr::select(`Pr(>F)`,Signif) %>%
+                      rename(`  ` = Signif) %>%
+                      rownames_to_column("term")%>%
+                      dplyr::mutate(term = dplyr::case_when(
+                        term == "plotlvl_tot_LI" ~ "Total LI",
+                        term == "Crop" ~ "Cropping System",
+                        term == "plotlvl_tot_LI:Crop" ~ "Total LI:Cropping System")))%>%
+  set_header_labels(term = "")
+print(tableW2)
+
+aov.tableW3 <- anova(modelweedT3)
+tableW3 = flextable(data = aov.tableW3 %>%
+                      #filter(`Pr(>F)` < 0.05) %>%
+                      mutate(`Pr(>F)` = as.numeric(`Pr(>F)`),          # ensure numeric
+                             Signif = p_to_stars(`Pr(>F)`),            # add stars column
+                             `Pr(>F)` = formatC(`Pr(>F)`, digits = 3))%>%  # format p-value nicely %>%
+                      dplyr::select(`Pr(>F)`,Signif) %>%
+                      rename(`  ` = Signif) %>%
+                      rownames_to_column("term")%>%
+                      dplyr::mutate(term = dplyr::case_when(
+                        term == "plotlvl_tot_LI" ~ "Total LI",
+                        term == "Crop" ~ "Cropping System",
+                        term == "plotlvl_tot_LI:Crop" ~ "Total LI:Cropping System")))%>%
+  set_header_labels(term = "")
+print(tableW3)
+
+table_merge <- cbind(aov.tableW1, aov.tableW2, aov.tableW3)
+colnames(table_merge) <- make.unique(colnames(table_merge))
+table_merge
+
+my_modelsNG <- c(modeloatT1, modeloatT2, modeloatT3, modelpeaT1, modelpeaT2, modelpeaT3,modelweedT1, modelweedT2, modelweedT3)
+anovasNG <- purrr::map(my_modelsNG, ~anova(.))
+names(anovasNG) <- c("Year 1 Summer", "Year 1 Fall", "Year 2 Summer", "Year 2 Fall", "Year 3 Summer", "Year 3 Fall")
+
+# Function to format p-values as stars
+format_p_value <- function(p_val) {
+  stars <- ifelse(p_val < 0.001, "***", ifelse(p_val < 0.01, "**", ifelse(p_val < 0.05, "*", "")))
+  return(stars)
+}
+
+# Apply the function to your ANOVA results
+NG_stars_tibble <- map(anovasNG, as_tibble, rownames="term") %>%
+  bind_rows(.id = "harvest") %>%
+  mutate(stars = map_chr(`Pr(>F)`, format_p_value))
+
+NG_stars_tibble <- NG_stars_tibble %>%
+  mutate(term = ifelse(term == "P", "E", term)) %>%
+  #  mutate(term = ifelse(term == "N", "Nitrogen Rate (N)", term)) %>%
+  mutate(term = ifelse(term == "CROP", "C", term)) %>%
+  mutate(term = ifelse(term == "N:P", "N:E", term))%>%
+  mutate(term = ifelse(term == "P:CROP", "E:C", term))%>%
+  mutate(term = ifelse(term == "N:P:CROP", "N:E:C", term))%>%
+  filter(term != "Residuals")
+
+# Print the tibble
+print(NG_stars_tibble)
+
+NG_stars <-NG_stars_tibble |>
+  select(harvest, term, stars) |>
+  pivot_wider(names_from = term, values_from = stars)|>
+  mutate(model = c("log", "log", "linear", "log", "log", "log"))|>
+  relocate(model, .after = harvest)
+
+gt_NG <- gt(NG_stars)
+
+gt_NG |> gtsave("figures/forage/gt_TF.png", expand = 10)
 
 
 
