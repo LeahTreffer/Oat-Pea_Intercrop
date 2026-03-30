@@ -442,6 +442,18 @@ modelweed <- lmer(sqrt(Weed_Biomass) ~ plotlvl_tot_LI * Timepoint * Crop + (1|pl
 anova(modelweed)
 # weed biomass almost significant different by Timepoint * Crop
 
+# total biomass
+LiCor3 <- LiCor2 %>%
+  mutate(totBiomass = rowSums(cbind(Oat_biomass, Pea_Biomass), na.rm = TRUE))
+modelbiomass <- lmer(log(totBiomass) ~ plotlvl_tot_LI * Timepoint * Crop + (1|plot_number), data=LiCor3)
+  bio_resid<-resid(modelbiomass)
+  qqnorm(bio_resid)
+  qqline(bio_resid)
+  plot(modelbiomass)
+anova(modelbiomass)
+# timepoint is significant
+
+
 # Oat Biomass T
 custom_letters <- c("a", "b", "c", "d", "e", "f", "g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z")  # Customize the letters as needed
 emms <- emmeans(modeloat, ~ Timepoint, type = "response") # Obtain estimated marginal means
@@ -481,6 +493,23 @@ totLI_weedTC <- ggplot(LiCor2) +
         legend.text=element_text(size=12), #change font size of legend text
         legend.title=element_text(size=16), #change font size of legend title
         legend.key.width = unit(1.5, "cm")) #change font size of facet title)
+
+# Total Biomass T
+emms <- emmeans(modelbiomass, ~ Timepoint, type = "response") # Obtain estimated marginal means
+emms_df <- as.data.frame(summary(emms))
+cld_data <- cld(emms, Letters=custom_letters)
+cld_df <-as.data.frame(cld_data)
+merged_df <- merge(emms_df, cld_df,by = c("Timepoint"))
+totLI_oatT <- ggplot(LiCor3, aes(x = Timepoint, y = totBiomass)) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +
+  geom_text(data = merged_df, aes(x = Timepoint, y = response.x, label = .group),
+            position = position_dodge(width = 0.8),
+            vjust = -0.5,  # slightly above each box
+            size = 5)+      # font size
+  labs(title = "Relationship of Total Crop Biomass and Timepoint", x = "Timepoint", y = "Biomass (g)")+
+  theme(axis.text=element_text(size=14), #change font size of axis text
+        axis.title=element_text(size=18))
+
 
 ## Linear Models of each Timepoint Individually
 

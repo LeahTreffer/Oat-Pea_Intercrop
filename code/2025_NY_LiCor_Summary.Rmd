@@ -1,0 +1,615 @@
+---
+title: "2025_NY_LiCor_Summary"
+author: "Leah Treffer"
+date: "2026-03-30"
+output: 
+  html_document:
+    toc: true # table of content true
+    toc_depth: 3  # upto three depths of headings (specified by #, ## and ###)
+    theme: united  # many options for theme, this one is my favorite.
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE, message = FALSE)
+```
+
+## Methods
+### Trial Info
+
+Data from 2025 NY oat-pea intercrop trials\
+Field : Helfner, Ithaca NY\
+
+20 plots; these were the first 10 'border' plots on each side of the 400 plot B4I experiment\
+
+- 5 oat accessions\
+- 5 pea accessions\
+- intercrops and monocrops of oat and pea\
+- each accession exists has a monoculture and as two intercrops with two accession of the other species\
+
+each plot divided into 3 subplots; subplot 1 always north side and subplot 3 always the south side\
+seeding rate for the monocultures was 54g oat mono, 8 seed per square ft pea mono\
+intercrops were planted at a percentage of those seeding rates: 40% oat and 60% pea\
+biomass samples taken using quadrant, harvest quadrant area from one subplot of each plot per timepoint\
+
+-Timepoint 1 : June 2-3 2025\
+-Timepoint 2 : June 24-25 2025\
+-Timepoint 3 : July 14-15 2025\
+
+Raw data : https://cornell.app.box.com/folder/342321167330 \
+data exists elsewhere for plant height, biomass, stand count (https://oat.triticeaetoolbox.org/breeders/trial/6830; "data/B4I_2025_PM3D_NY_phenotypes.csv")\
+
+- Above ground dry biomass - g|timepoint X|COMP:0000110\
+- Pea Aboveground Dry Biomass - g|timepoint X|COMP:0000118\
+- Weed above ground dry biomass - g|timepoint X|COMP:0000126\
+- Plant establishment - plants/ft2|CO_350:0005124\
+- Pea Plant Establishment - plants/ft2|CO_xxx:0003011\
+- Plant height - cm|timepoint X|COMP:0000114\
+- Pea Plant Height - cm|timepoint X|COMP:0000122\
+Since seeding rates are different between interfrop and monoculture, we will want to have the standcounts (emergence) data
+
+Light Interception data\
+
+- not on T3, can be found on my Github <https://github.com/LeahTreffer/Oat-Pea_Intercrop/blob/cd12555cbffcc35954a5a759d29685cd9b31af6d/data/T1_T2_T3_light_interception.xlsx>
+
+### Photosynthetically Active Radiation (PAR) data from a LiCor LI-188B Quantum Sensor
+- Integration = 10 s
+- Range = 100x
+- Quantum Sensor Unit: µmol PAR m-2 s-1
+
+sensor slowly moved horizontally through canopy within each subplot\
+PAR measurement taken with sensor on the ground and above canopy\
+in T2 and T3 another PAR measurement was taken 15 cm from the ground\
+At each timepoint, all three subplots had PAR measurments taken across subplot area (if biomass existed in the subplot; since one subplot was harvested at each timepoint, proceeding timepoints had one subplot per plot fewer available to measure)\
+measurements taken by Leah and recorded by hand (T1), and in Fieldbook (T2,T3) by Mirza\
+
+### Calculations Based on Measurements of PAR 
+
+Above canopy PAR represents the total light available above the crop canopy (i.e., incident light).\
+Below canopy PAR indicates the amount of light that passes through the canopy and is available for the plants below it.\
+
+**Light Interception (LI): percentage of light that is absorbed by the canopy compared to the incident light**\
+LI = ((PAR_above - PAR_below) / PAR_above) * 100\
+
+**Light Interception Efficiency (LIE): measure of how efficiently the crops intercept light compared to a baseline, such as monocrop systems or theoretical maximum light interception**\
+LIE = mean_intercrop_LI / mean_monocrop_LI\
+
+### Adjustemnts to Light Interception 
+This does not account for differences in seeding rate between monocultures and intercrops, so I have adjusted based on stand counts\
+1. In excel, I sorted oats by oat name>system(inter/mono)>plot so that I had a list with oat accessions grouped together with the two intercrop plots followed by its monoculture version\
+2. I then made a new column (Oat_prcnt) and set the value for the monoculture to 1. This represents that the monoculture was planted at 100% seeding rate. Whatever establishment exists for a 100% seeding rate is concidered 100% stand count\
+3. For each accession's subplots I took the subplot's stand count and divided it by the same subplot in the monoculture version of the accession. This gives observed seeding rate or stand count as a percentage of monoculture\
+
+- The same process was done for peas
+
+That left the following to do in R:\
+
+- Prct from each subplot is X% stand count\
+1. average the two intercrop X% stand counts\
+2. change monoculture LIE value to X% of full mono value (if monoculture had the same stand count as an intercrop plot, what would the LIE be)\
+
+**These adjusted light values are what is used in following analysis**
+
+Analysis code available here: <https://github.com/LeahTreffer/Oat-Pea_Intercrop/blob/cd12555cbffcc35954a5a759d29685cd9b31af6d/code/2025_LiCor.R>
+
+```{r library, echo=FALSE, include=FALSE}
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(corrplot)
+library(lmerTest)
+library(lme4)
+library(multcomp)
+library(emmeans)
+library(here)
+library(MASS)
+library(flextable)
+library(tibble)
+library(ggpubr)
+```
+
+```{r echo=FALSE, include=FALSE}
+# Function to convert p-values to significance stars
+p_to_stars <- function(p) {
+  case_when(
+    is.na(p) ~ "",
+    p < 0.001 ~ "***",
+    p < 0.01  ~ "**",
+    p < 0.05  ~ "*",
+    p < 0.1   ~ ".",
+    TRUE      ~ ""
+  )
+}
+```
+
+```{r echo=FALSE, include=FALSE}
+here::i_am("code/2025_LiCor.R")
+```
+
+```{r echo=FALSE, include=FALSE}
+# read in and manipulate data
+LiCor <- read_excel(here("data", "T1_T2_T3_light_interception.xlsx"), sheet = 'Long')
+
+LiCor$plot_number <- as.factor(LiCor$plot_number)
+LiCor$subplot_number <- as.factor(LiCor$subplot_number)
+LiCor$Timepoint <- as.factor(LiCor$Timepoint)
+LiCor$Crop <- as.factor(LiCor$Crop)
+LiCor <- LiCor %>%
+  mutate(oat_accession_name = na_if(oat_accession_name, "NO_OATS_PLANTED"))%>%
+  mutate(pea_accession_name = na_if(pea_accession_name, "NO_PEAS_PLANTED"))
+LiCor$oat_accession_name <- as.factor(LiCor$oat_accession_name)
+LiCor$pea_accession_name <- as.factor(LiCor$pea_accession_name)
+
+### Light Interception (LI)
+LiCor$total_light_interception <- ((LiCor$Light_top - LiCor$Light_ground) / LiCor$Light_top) * 100
+LiCor$top_light_interception <- ((LiCor$Light_top - LiCor$Light_mid) / LiCor$Light_top) * 100
+LiCor$bottom_light_interception <- ((LiCor$Light_mid - LiCor$Light_ground) / LiCor$Light_mid) * 100
+
+intercrop_data <- LiCor[LiCor$System == "intercrop", ]
+monocrop_data <- LiCor[LiCor$System == "monoculture", ]
+mono_pea <- LiCor[LiCor$Crop == "pea", ]
+mono_oat <- LiCor[LiCor$Crop == "oat", ]
+```
+
+```{r echo=FALSE, include=FALSE}
+# ChatGPT code to finish adjusting light values based on stand count
+# Oat monoculture adjustment
+# Step 1: Get intercrop plot means for oat_prcnt by accession × subplot
+oat_inter_means <- LiCor %>%
+  filter(System == "intercrop", Timepoint == 1) %>%
+  group_by(oat_accession_name, subplot_number) %>%
+  summarise(mean_oat_prcnt = mean(Oat_Prcnt, na.rm = TRUE), .groups = "drop") # average stand count (% of mono count)
+# Step 2: Adjust monoculture interception
+oat_mono_adj <- LiCor %>%
+  filter(System == "monoculture") %>%
+  left_join(oat_inter_means, by = c("oat_accession_name", "subplot_number")) %>%
+  mutate(
+    adj_light_interception = total_light_interception * mean_oat_prcnt,
+    adj_top_light_interception = top_light_interception * mean_oat_prcnt,
+    adj_bottom_light_interception = bottom_light_interception * mean_oat_prcnt
+  )
+# Pea monoculture Adjustment
+# Step 1: Get intercrop means for pea_prcnt by accession × subplot
+pea_inter_means <- LiCor %>%
+  filter(System == "intercrop", Timepoint == 1) %>%
+  group_by(pea_accession_name, subplot_number) %>%
+  summarise(mean_pea_prcnt = mean(Pea_Prcnt, na.rm = TRUE), .groups = "drop")
+# Step 2: Adjust monoculture interception
+pea_mono_adj <- LiCor %>%
+  filter(System == "monoculture") %>%
+  left_join(pea_inter_means, by = c("pea_accession_name", "subplot_number")) %>%
+  mutate(
+    adj_light_interception = total_light_interception * mean_pea_prcnt,
+    adj_top_light_interception = top_light_interception * mean_pea_prcnt,
+    adj_bottom_light_interception = bottom_light_interception * mean_pea_prcnt
+  )
+```
+
+```{r echo=FALSE, include=FALSE}
+# Add Adj oat mono values to data table
+LiCor <- LiCor %>%
+  left_join(
+    oat_mono_adj %>%
+      dplyr::select(oat_accession_name, plot_number, subplot_number, Timepoint, adj_light_interception, adj_top_light_interception, adj_bottom_light_interception),
+    by = c("oat_accession_name", "plot_number", "subplot_number", "Timepoint")
+  )
+# Add Adj pea mono values to data table
+LiCor <- LiCor %>%
+  left_join(
+    pea_mono_adj %>%
+      dplyr::select(pea_accession_name, plot_number, subplot_number, Timepoint, adj_light_interception, adj_top_light_interception, adj_bottom_light_interception),
+    by = c("pea_accession_name", "plot_number", "subplot_number", "Timepoint")
+  )
+
+#combine adjustment columns into one column
+LiCor$adj_light_interception <- apply(LiCor[, c("adj_light_interception.x", "adj_light_interception.y")], 1, function(x)
+  paste(na.omit(x), collapse = " ")
+)
+LiCor$adj_top_light_interception <- apply(LiCor[, c("adj_top_light_interception.x", "adj_top_light_interception.y")], 1, function(x)
+  paste(na.omit(x), collapse = " ")
+)
+LiCor$adj_bottom_light_interception <- apply(LiCor[, c("adj_bottom_light_interception.x", "adj_bottom_light_interception.y")], 1, function(x)
+  paste(na.omit(x), collapse = " ")
+)
+
+# combine adjusted mono values and true intercrop values (intercrop values were not adjusted; monoculture was adjusted to intercrop)
+LiCor$adjTotLI <- ifelse(!is.na(LiCor$adj_light_interception) & LiCor$adj_light_interception != "", LiCor$adj_light_interception, LiCor$total_light_interception)
+LiCor$adjTopLI <- ifelse(!is.na(LiCor$adj_top_light_interception) & LiCor$adj_top_light_interception != "", LiCor$adj_top_light_interception, LiCor$top_light_interception)
+LiCor$adjBtmLI <- ifelse(!is.na(LiCor$adj_bottom_light_interception) & LiCor$adj_bottom_light_interception != "", LiCor$adj_bottom_light_interception, LiCor$bottom_light_interception)
+
+LiCor$adjTotLI <- as.numeric(LiCor$adjTotLI)
+LiCor$adjTopLI <- as.numeric(LiCor$adjTopLI)
+LiCor$adjBtmLI <- as.numeric(LiCor$adjBtmLI)
+```
+
+## Analysis
+
+### Correlation of traits
+
+#### Intercrop Plots Only
+
+- Expected positive correlation of biomass and height\
+- Negative correlation for oat height and LI in bottom half of stand
+  - as oats got taller, less light was intercepted in the lower portion of the canopy\
+- Negative correlation for both species biomass and LI in bottom half of stand\
+  - as crop biomass increased, less light was intercepted in the lower portion of the canopy\
+- Positive correlation for LI in both sections of the canopy and total LI\
+  - more light interception in any part of the canopy increases total LI\
+- Slight negative correlation for top and bottom LI\
+  - as more light is intercepted by the top, less is intersepted by the bottom - perhaps those leaves are senesing and/or less light even getting down there\
+- Interesting that there is a slight positive correlation of weed biomass and total light interception\
+  - perhaps weed biomass contributed to canopy LI rather than oat and pea out-competing weeds/ biomass shading out weeds\
+- Interesting that correlations weren't higher\
+
+```{r echo=FALSE}
+# correlation matrix with pairwise complete obs
+corr_matrix_int <- LiCor %>%
+  filter(System == "intercrop") %>%
+  rename(Total_Light_Interception = adjTotLI)%>%
+  rename(Top_Light_Interception = adjTopLI)%>%
+  rename(Bottom_Light_Interception = adjBtmLI)%>%
+  dplyr::select(
+    Oat_biomass, Pea_Biomass, Weed_Biomass,
+    Oat_Height, Pea_Height,
+    Total_Light_Interception, Top_Light_Interception,
+    Bottom_Light_Interception
+  ) %>%
+  cor(use = "pairwise.complete.obs")
+
+corrplot(corr_matrix_int, method = "number", type = 'upper')
+```
+
+How we chose to measure top and bottom canopy LI (set hieght from ground) means plots with taller plants have more biomass in top section. Some of these correlations might be slightly different if we had instead always placed the sensor in the middle of the canopy so top and bottom were representing equal height sections of the canopy. 
+
+### Light Interception Efficiency (LIE)  
+
+```{r include=FALSE}
+intercrop_data <- LiCor[LiCor$System == "intercrop", ]
+monocrop_data <- LiCor[LiCor$System == "monoculture", ]
+mono_pea <- LiCor[LiCor$Crop == "pea", ]
+mono_oat <- LiCor[LiCor$Crop == "oat", ]
+mean_intercrop_LI <- mean(intercrop_data$total_light_interception, na.rm = TRUE)
+mean_mono_pea_LI <- mean(mono_pea$adjTotLI, na.rm = TRUE)
+mean_mono_oat_LI <- mean(mono_oat$adjTotLI, na.rm = TRUE)
+mean_mono_LI <- mean(c(mono_pea$adjTotLI,mono_oat$adjTotLI), na.rm=TRUE)
+```
+
+```{r}
+LIE_adj <- mean_intercrop_LI / mean_mono_LI
+LIE_adj_o <- mean_intercrop_LI / mean_mono_oat_LI
+LIE_adj_p <- mean_intercrop_LI / mean_mono_pea_LI
+LIE_adj
+LIE_adj_o
+LIE_adj_p
+```
+
+- **Intercrop plots were more efficient at light interception than the monocultures**\
+- Intercrops intercepted twice (2.18) as much light as the same stand count of monoculture\
+- This was true regardless of monoculture species- intercrops intercepted more than oats (LIE=2.22) and peas (LIE=2.14)\
+
+### Differences in Light Interception by Cropping System
+After checking assumptions and AIC for two models with 1. subplots as individual data points or 2. average subplots for each plot within timepoint, I decided to treat subplot as technical replicates and went with model 2.\
+
+Using linear mixed model $y=X\beta+Z\mu+\epsilon$ with the total light intercepted as the response variable, cropping system (monoculture oat, monoculture pea, or intercrop) and timepoint (T1, T2, T3) as fixed effects, and plot as a random effect\
+
+$$ Total Light Interception = Timepoint * Cropping System + (1|plot)$$
+
+```{r echo=FALSE}
+# average subplots for each plot within timepoint
+LiCor2 <- LiCor %>%
+  group_by(Timepoint, plot_number, Crop)%>%
+  summarize(plotlvl_tot_LI = mean(adjTotLI, na.rm=TRUE))
+```
+
+This showed that the total light intercepted by a plot differed by the timepoint, the cropping system, and the interaction of those 
+
+```{r echo=FALSE}
+modelcrop <- lmer(plotlvl_tot_LI ~ Timepoint * Crop + (1|plot_number), data=LiCor2)
+
+aov.table <- anova(modelcrop)
+table = flextable(data = aov.table %>%
+                    #filter(`Pr(>F)` < 0.05) %>%
+                    mutate(`Pr(>F)` = as.numeric(`Pr(>F)`),          # ensure numeric
+                           Signif = p_to_stars(`Pr(>F)`),            # add stars column
+                           `Pr(>F)` = formatC(`Pr(>F)`, digits = 3))%>%  # format p-value nicely %>%
+                    dplyr::select(`Pr(>F)`,Signif) %>%
+                    rename(`  ` = Signif) %>%
+                    rownames_to_column(" "))
+table
+```
+
+```{r echo=FALSE}
+custom_letters <- c("a", "b", "c", "d", "e", "f", "g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z")  # Customize the letters as needed
+emms <- emmeans(modelcrop, ~ Crop*Timepoint, type = "response") # Obtain estimated marginal means
+emms_df <- as.data.frame(summary(emms))
+cld_data <- cld(emms, Letters=custom_letters)
+cld_df <-as.data.frame(cld_data)
+merged_df <- merge(emms_df, cld_df,by = c("Timepoint", "Crop"))
+totLI_crop <- ggplot(LiCor2, aes(x = Timepoint, y = plotlvl_tot_LI, colour = Crop)) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +
+  geom_text(data = merged_df, aes(x = Timepoint, y = emmean.x, colour = Crop, label = .group),
+            position = position_dodge(width = 0.8),
+            vjust = -0.5,  # slightly above each box
+            size = 5)+      # font size
+  scale_colour_manual(values = c("#DDCC77", "#882255", "#117733"),labels = c("Oat Monoculture","Pea Monoculture", "Intercrop"))+
+  labs(title = "Relationship of Total Light Interception to Cropping System and Timepoint", x = "Timepoint", y = "Light Interception (%)")+
+  theme(axis.text=element_text(size=14), #change font size of axis text
+        axis.title=element_text(size=18))
+```
+
+```{r echo=FALSE}
+totLI_crop
+```
+
+estimated marginal means of the Cropping System x Timepoint interaction show:\
+
+- Within a timepoint, the intercrop is always intercepting more light than the monocultures\
+- Within T1 and T2, the two monocultures intercept similar amounts of light, but in T3 the pea monocultures intercepted more light than the oats\
+  - oats mature earlier and senescence may explain part of the T3 difference\
+- Within Cropping System, Light interception was similar in T2 and T3\
+  - Once biomass is accumulated, later season there is probably less change in height and biomass compared to early season\
+- Interesting trend where the Total Light Interception of the oat monocultures plautues from T2 to T3, perhaps even slightly lower in T3. While the Total Light Interception of pea monocultures trend is to increase. 
+- When is the ideal time for Total Light Interception to be at a max? I have not matched these timepoints or the data to crop phenology (ex. flowering time); is high light interception during flowering/seed fill limiting the potential end yield of the system? 
+  
+### Differences in Biomass by Light Interception and Cropping System
+Using linear mixed model $y=X\beta+Z\mu+\epsilon$ with either oat, pea, weed, or oat+pea biomass as the response variable, and total light interception, cropping system (monoculture oat, monoculture pea, or intercrop) and timepoint (T1, T2, T3) as fixed effects, and plot as a random effect\
+
+$$ Biomass = Total Light Interception * Timepoint * Cropping System + (1|plot)$$
+The only significance found was Timepoint for oat biomass and total crop biomass
+
+```{r echo=FALSE}
+LiCor2 <- LiCor %>%
+  group_by(plot_number, Timepoint) %>%
+  summarise(
+    plotlvl_tot_LI = mean(adjTotLI, na.rm = TRUE),
+    across(c(Oat_biomass, Pea_Biomass, Weed_Biomass, Crop),
+           ~ if (all(is.na(.))) NA else first(na.omit(.))),
+    .groups = "drop"
+)
+
+modeloat<- lmer(log(Oat_biomass) ~ plotlvl_tot_LI * Timepoint * Crop + (1|plot_number), data=LiCor2)
+modelpea<- lmer(log(Pea_Biomass) ~ plotlvl_tot_LI * Timepoint * Crop + (1|plot_number), data=LiCor2)
+modelweed <- lmer(sqrt(Weed_Biomass) ~ plotlvl_tot_LI * Timepoint * Crop + (1|plot_number), data=LiCor2)
+LiCor3 <- LiCor2 %>%
+  mutate(totBiomass = rowSums(cbind(Oat_biomass, Pea_Biomass), na.rm = TRUE))
+modelbiomass <- lmer(log(totBiomass) ~ plotlvl_tot_LI * Timepoint * Crop + (1|plot_number), data=LiCor3)
+```
+
+```{r echo=FALSE}
+# Make figures
+# Oat Biomass T
+custom_letters <- c("a", "b", "c", "d", "e", "f", "g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z")  # Customize the letters as needed
+emms <- emmeans(modeloat, ~ Timepoint, type = "response") # Obtain estimated marginal means
+emms_df <- as.data.frame(summary(emms))
+cld_data <- cld(emms, Letters=custom_letters)
+cld_df <-as.data.frame(cld_data)
+merged_df <- merge(emms_df, cld_df,by = c("Timepoint"))
+totLI_oatT <- ggplot(LiCor2, aes(x = Timepoint, y = Oat_biomass)) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +
+  geom_text(data = merged_df, aes(x = Timepoint, y = response.x, label = .group),
+            position = position_dodge(width = 0.8),
+            vjust = -0.5,  # slightly above each box
+            size = 5)+      # font size
+  labs(title = "a", x = "Timepoint", y = "Oat Biomass (g)")+
+  theme(axis.text=element_text(size=14), #change font size of axis text
+        axis.title=element_text(size=18))
+
+# Total Biomass T
+emms <- emmeans(modelbiomass, ~ Timepoint, type = "response") # Obtain estimated marginal means
+emms_df <- as.data.frame(summary(emms))
+cld_data <- cld(emms, Letters=custom_letters)
+cld_df <-as.data.frame(cld_data)
+merged_df <- merge(emms_df, cld_df,by = c("Timepoint"))
+totLI_bioT <- ggplot(LiCor3, aes(x = Timepoint, y = totBiomass)) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +
+  geom_text(data = merged_df, aes(x = Timepoint, y = response.x, label = .group),
+            position = position_dodge(width = 0.8),
+            vjust = -0.5,  # slightly above each box
+            size = 5)+      # font size
+  labs(title = "b", x = "Timepoint", y = "Total Crop Biomass (g)")+
+  theme(axis.text=element_text(size=14), #change font size of axis text
+        axis.title=element_text(size=18))
+```
+
+```{r echo=FALSE}
+biomassT <- ggarrange(
+totLI_oatT,
+totLI_bioT,
+ncol = 2
+)
+#biomassT
+```
+
+The only significance found was Timepoint for oat biomass and total crop biomass. Similar to the Total Light Interception figure, T1 was significantly lower than T2 and T3, which were similar to each other. 
+
+### Differences in Biomass by Light Interception and Cropping System - each Timepoint Modeled Individually
+Just looking at the two-way interaction of Light interception and Cropping system\
+Here, a model for each species biomass at each timepoint was run with Total Light interception x Cropping System interaction as the fixed effect\
+Stars representing level of significance from each of those models are presented below in a summary table\ 
+
+```{r include=FALSE}
+## Linear Models of each Timepoint Individually
+
+LiCorT1 <- LiCor2 %>% filter(Timepoint=="1")
+
+modeloatT1<- lm(Oat_biomass ~ plotlvl_tot_LI * Crop, data=LiCorT1)
+  oaT1_resid<-resid(modeloatT1)
+  qqnorm(oaT1_resid)
+  qqline(oaT1_resid)
+  #plot(modeloatT1)
+anova(modeloatT1)
+# light interception and cropping system were significant individually but not as an interaction
+
+modelpeaT1<- lm(Pea_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT1)
+  peat1_resid<-resid(modelpeaT1)
+  qqnorm(peat1_resid)
+  qqline(peat1_resid)
+  #plot(modelpeaT1)
+anova(modelpeaT1)
+# light interception was significant
+
+modelweedT1<- lm(Weed_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT1)
+  weedT1_resid<-resid(modelweedT1)
+  qqnorm(weedT1_resid)
+  qqline(weedT1_resid)
+  #plot(modelweedT1)
+anova(modelweedT1)
+# LI * Crop interaction was significant
+
+LiCorT2 <- LiCor2 %>% filter(Timepoint=="2")
+
+modeloatT2<- lm(Oat_biomass ~ plotlvl_tot_LI * Crop, data=LiCorT2)
+  oaT2_resid<-resid(modeloatT2)
+  qqnorm(oaT2_resid)
+  qqline(oaT2_resid)
+  #plot(modeloatT2)
+anova(modeloatT2)
+# cropping system was significant
+
+modelpeaT2<- lm(Pea_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT2)
+  pea1_resid<-resid(modelpeaT2)
+  qqnorm(pea1_resid)
+  qqline(pea1_resid)
+  #plot(modelpeaT2)
+anova(modelpeaT2)
+# light interception was significant
+
+modelweedT2<- lm(Weed_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT2)
+  weed1_resid<-resid(modelweedT2)
+  qqnorm(weed1_resid)
+  qqline(weed1_resid)
+  #plot(modelweedT2)
+anova(modelweedT2)
+# LI was significant
+
+LiCorT3 <- LiCor2 %>% filter(Timepoint=="3")
+
+modeloatT3<- lm(Oat_biomass ~ plotlvl_tot_LI * Crop, data=LiCorT3)
+  oaT3_resid<-resid(modeloatT3)
+  qqnorm(oaT3_resid)
+  qqline(oaT3_resid)
+  #plot(modeloatT3)
+anova(modeloatT3)
+# LI was significant
+
+modelpeaT3<- lm(Pea_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT3)
+  peaT3_resid<-resid(modelpeaT3)
+  qqnorm(peaT3_resid)
+  qqline(peaT3_resid)
+  #plot(modelpeaT3)
+anova(modelpeaT3)
+# cropping system was significant
+
+modelweedT3<- lm(Weed_Biomass ~ plotlvl_tot_LI * Crop, data=LiCorT3)
+  weedT3_resid<-resid(modelweedT3)
+  qqnorm(weedT3_resid)
+  qqline(weedT3_resid)
+  #plot(modelweedT3)
+anova(modelweedT3)
+# cropping system was significant
+```
+
+```{r include=FALSE}
+extract_stars <- function(model, species, time) {
+  anova(model) %>%
+    as.data.frame() %>%
+    rownames_to_column("term") %>%
+    filter(term != "Residuals") %>%
+    mutate(
+      term = case_when(
+        term == "plotlvl_tot_LI" ~ "Total LI",
+        term == "Crop" ~ "Cropping System",
+        term == "plotlvl_tot_LI:Crop" ~ "Total LI:Cropping System",
+        TRUE ~ term
+      ),
+      stars = p_to_stars(`Pr(>F)`),
+      Species = species,
+      Time = time
+    ) %>%
+    dplyr::select(Species, Time, term, stars)
+}
+
+all_results <- bind_rows(
+  extract_stars(modeloatT1, "Oat", "T1"),
+  extract_stars(modeloatT2, "Oat", "T2"),
+  extract_stars(modeloatT3, "Oat", "T3"),
+  
+  extract_stars(modelpeaT1, "Pea", "T1"),
+  extract_stars(modelpeaT2, "Pea", "T2"),
+  extract_stars(modelpeaT3, "Pea", "T3"),
+  
+  extract_stars(modelweedT1, "Weed", "T1"),
+  extract_stars(modelweedT2, "Weed", "T2"),
+  extract_stars(modelweedT3, "Weed", "T3")
+)
+
+summary_table <- all_results %>%
+  pivot_wider(
+    names_from = c(Time, term),
+    values_from = stars
+  ) %>%
+  arrange(Species)
+
+summary_table <- summary_table %>%
+  dplyr::select(
+    Species,
+    `T1_Total LI`, `T1_Cropping System`, `T1_Total LI:Cropping System`,
+    `T2_Total LI`, `T2_Cropping System`, `T2_Total LI:Cropping System`,
+    `T3_Total LI`, `T3_Cropping System`, `T3_Total LI:Cropping System`
+  )
+
+ft <- flextable(summary_table)
+ft <- ft %>%
+  add_header_row(
+    values = c("", "Timepoint 1", "Timepoint 2", "Timepoint 3"),
+    colwidths = c(1, 3, 3, 3)
+  ) %>%
+  align(part = "header", align = "center")
+
+ft <- ft %>%
+  set_header_labels(
+    `T1_Total LI` = "Total LI",
+    `T1_Cropping System` = "Cropping System",
+    `T1_Total LI:Cropping System` = "LI:Crop",
+    
+    `T2_Total LI` = "Total LI",
+    `T2_Cropping System` = "Cropping System",
+    `T2_Total LI:Cropping System` = "LI:Crop",
+    
+    `T3_Total LI` = "Total LI",
+    `T3_Cropping System` = "Cropping System",
+    `T3_Total LI:Cropping System` = "LI:Crop"
+  )
+
+ft3 <- ft %>%
+  padding(j = c(4, 7), padding.right = 10, part = "all") %>%
+  bg(j = 2:4, bg = "#f0f0f0", part = "all") %>%  # T1
+  bg(j = 5:7, bg = "#f8f8f8", part = "all")     # T3
+```
+
+```{r echo=FALSE}
+ft3
+```
+
+The results were not consistent; no clear trend to what factors affect a species's biomass within a timepoint\ 
+Difficult to say anything with small data set\
+
+## Summary
+
+- **Intercrops have higher Light Interception Efficiency than either oat monoculture or pea monocultures** 
+- The Total Light Interception of intercrops was always significantly higher than the Total Light Interception of either species monoculture
+- For both pea and oat monocultures, the species had similar Total Light Interception in Timepoint 2 and Timepoint 3, and were also similar to each other in Timepoint 1 and Timepoint 2 with **peas intercepting more light in Timepoint 3 than oats**
+- Because this is not a large data set (20 plots) I have low confidence in the model results- significance may be inconsequential or we could be missing real trends
+- Have not been able to model genotype level differences for similar reason of not a big data set
+
+
+If done again: 
+
+- it may be interesting to have another early timepoint, since Timepoint 1 is significantly different than Timepoint 2 and Timepoint 3, and the later timepoints showed no difference in Total Light Interception or biomass when all timepoints were modeled together
+  - *OR*, if there is not capacity to do three timepoints, one of the later timepoints could be eliminated and just have an early and late timepoint
+- Should Light Interception be adjusted for differences in seeding rate/ plant density? 
+  - the two species are seeded at a certain % of monoculture (full) seeding rate. For this analysis, I adjusted measurements so the comparison was the intercrops to the monocultures if monocultures were at same stand count. But if interesed in the agronomics of the intercrop system may want to rethink the adjustment/analysis.  
+- it would be beneficial to measure PAR in more plots
+- if interested in genotype level differences, need more entries, some kind of covariance matrix for relatedness 
+- The model ended up fitting better after averaging the light interception of the subplots so there was one plot level light interception. However, Biomass was taken from a specific subplot at each timepoint. I think subplot level PAR should continue to be taken and a model with subplot as a random effect and with subplot averaged should be compared with a function such as AIC. 
+
