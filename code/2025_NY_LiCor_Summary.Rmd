@@ -41,11 +41,11 @@ data exists elsewhere for plant height, biomass, stand count (https://oat.tritic
 - Above ground dry biomass - g|timepoint X|COMP:0000110\
 - Pea Aboveground Dry Biomass - g|timepoint X|COMP:0000118\
 - Weed above ground dry biomass - g|timepoint X|COMP:0000126\
-- Plant establishment - plants/ft2|CO_350:0005124\
-- Pea Plant Establishment - plants/ft2|CO_xxx:0003011\
 - Plant height - cm|timepoint X|COMP:0000114\
 - Pea Plant Height - cm|timepoint X|COMP:0000122\
-Since seeding rates are different between interfrop and monoculture, we will want to have the standcounts (emergence) data
+- Plant establishment - plants/ft2|CO_350:0005124\
+- Pea Plant Establishment - plants/ft2|CO_xxx:0003011\
+Since seeding rates are different between intercrop and monoculture, we will want to have the standcounts (emergence) data
 
 Light Interception data\
 
@@ -58,9 +58,9 @@ Light Interception data\
 
 sensor slowly moved horizontally through canopy within each subplot\
 PAR measurement taken with sensor on the ground and above canopy\
-in T2 and T3 another PAR measurement was taken 15 cm from the ground\
-At each timepoint, all three subplots had PAR measurments taken across subplot area (if biomass existed in the subplot; since one subplot was harvested at each timepoint, proceeding timepoints had one subplot per plot fewer available to measure)\
-measurements taken by Leah and recorded by hand (T1), and in Fieldbook (T2,T3) by Mirza\
+  - in T2 and T3 another PAR measurement was taken 15 cm from the ground\
+At each timepoint, all three subplots had PAR measurments taken through the subplot area (if biomass existed in the subplot; since one subplot was harvested at each timepoint, proceeding timepoints had one subplot per plot fewer available to measure)\
+measurements taken by Leah and recorded by Mirza by hand (T1), and in Fieldbook (T2,T3)\
 
 ### Calculations Based on Measurements of PAR 
 
@@ -259,7 +259,7 @@ corr_matrix_int <- LiCor %>%
 corrplot(corr_matrix_int, method = "number", type = 'upper')
 ```
 
-How we chose to measure top and bottom canopy LI (set hieght from ground) means plots with taller plants have more biomass in top section. Some of these correlations might be slightly different if we had instead always placed the sensor in the middle of the canopy so top and bottom were representing equal height sections of the canopy. 
+How we chose to measure top and bottom canopy LI (a set height from the ground) means plots with taller plants have more biomass in top section. Some of these correlations might be slightly different if we had instead always placed the sensor in the middle of the canopy so top and bottom were representing equal height sections of the canopy. 
 
 ### Light Interception Efficiency (LIE)  
 
@@ -329,7 +329,7 @@ totLI_crop <- ggplot(LiCor2, aes(x = Timepoint, y = plotlvl_tot_LI, colour = Cro
   geom_boxplot(position = position_dodge(width = 0.8)) +
   geom_text(data = merged_df, aes(x = Timepoint, y = emmean.x, colour = Crop, label = .group),
             position = position_dodge(width = 0.8),
-            vjust = -0.5,  # slightly above each box
+            vjust = -0.75,  # slightly above each box
             size = 5)+      # font size
   scale_colour_manual(values = c("#DDCC77", "#882255", "#117733"),labels = c("Oat Monoculture","Pea Monoculture", "Intercrop"))+
   labs(title = "Relationship of Total Light Interception to Cropping System and Timepoint", x = "Timepoint", y = "Light Interception (%)")+
@@ -343,12 +343,12 @@ totLI_crop
 
 estimated marginal means of the Cropping System x Timepoint interaction show:\
 
-- Within a timepoint, the intercrop is always intercepting more light than the monocultures\
-- Within T1 and T2, the two monocultures intercept similar amounts of light, but in T3 the pea monocultures intercepted more light than the oats\
+- Within a timepoint, the **intercrop is always intercepting more light than the monocultures**\
+- Interesting trend where the **Total Light Interception of the oat monocultures plautues from T2 to T3, perhaps even slightly lower in T3. While the Total Light Interception of pea monocultures trend is to increase**\
+- Within T1 and T2, the two monocultures intercept similar amounts of light, but **in T3 the pea monocultures intercepted more light than the oats**\
   - oats mature earlier and senescence may explain part of the T3 difference\
 - Within Cropping System, Light interception was similar in T2 and T3\
   - Once biomass is accumulated, later season there is probably less change in height and biomass compared to early season\
-- Interesting trend where the Total Light Interception of the oat monocultures plautues from T2 to T3, perhaps even slightly lower in T3. While the Total Light Interception of pea monocultures trend is to increase. 
 - When is the ideal time for Total Light Interception to be at a max? I have not matched these timepoints or the data to crop phenology (ex. flowering time); is high light interception during flowering/seed fill limiting the potential end yield of the system? 
   
 ### Differences in Biomass by Light Interception and Cropping System
@@ -420,7 +420,7 @@ ncol = 2
 #biomassT
 ```
 
-The only significance found was Timepoint for oat biomass and total crop biomass. Similar to the Total Light Interception figure, T1 was significantly lower than T2 and T3, which were similar to each other. 
+**The only significance found was Timepoint for oat biomass and total crop biomass.** Similar to the Total Light Interception figure, T1 was significantly lower than T2 and T3, which were similar to each other. 
 
 ### Differences in Biomass by Light Interception and Cropping System - each Timepoint Modeled Individually
 Just looking at the two-way interaction of Light interception and Cropping system\
