@@ -22,7 +22,9 @@ Field : Helfner, Ithaca NY\
 20 plots; these were the first 10 'border' plots on each side of the 400 plot B4I experiment\
 
 - 5 oat accessions\
+  - ND210038, IL17-1704, ND Spilde, SD Momentum, ND190393
 - 5 pea accessions\
+  - NDP150231Y, ND DAWN, NDP150412G, ND VICTORY, NDP140510Y
 - intercrops and monocrops of oat and pea\
 - each accession exists has a monoculture and as two intercrops with two accession of the other species\
 
@@ -31,9 +33,9 @@ seeding rate for the monocultures was 54g oat mono, 8 seed per square ft pea mon
 intercrops were planted at a percentage of those seeding rates: 40% oat and 60% pea\
 biomass samples taken using quadrant, harvest quadrant area from one subplot of each plot per timepoint\
 
--Timepoint 1 : June 2-3 2025\
--Timepoint 2 : June 24-25 2025\
--Timepoint 3 : July 14-15 2025\
+- Timepoint 1 : June 2-3 2025\
+- Timepoint 2 : June 24-25 2025\
+- Timepoint 3 : July 14-15 2025\
 
 Raw data : https://cornell.app.box.com/folder/342321167330 \
 data exists elsewhere for plant height, biomass, stand count (https://oat.triticeaetoolbox.org/breeders/trial/6830; "data/B4I_2025_PM3D_NY_phenotypes.csv")\
@@ -45,11 +47,11 @@ data exists elsewhere for plant height, biomass, stand count (https://oat.tritic
 - Pea Plant Height - cm|timepoint X|COMP:0000122\
 - Plant establishment - plants/ft2|CO_350:0005124\
 - Pea Plant Establishment - plants/ft2|CO_xxx:0003011\
-Since seeding rates are different between intercrop and monoculture, we will want to have the standcounts (emergence) data
+Since seeding rates are different between intercrop and monoculture, we will want to have the stand counts (establishment) data
 
-Light Interception data\
+Light Interception data:\
 
-- not on T3, can be found on my Github <https://github.com/LeahTreffer/Oat-Pea_Intercrop/blob/cd12555cbffcc35954a5a759d29685cd9b31af6d/data/T1_T2_T3_light_interception.xlsx>
+- not on T3, but can be downloaded from my Github <https://github.com/LeahTreffer/Oat-Pea_Intercrop/blob/cd12555cbffcc35954a5a759d29685cd9b31af6d/data/T1_T2_T3_light_interception.xlsx>
 
 ### Photosynthetically Active Radiation (PAR) data from a LiCor LI-188B Quantum Sensor
 - Integration = 10 s
@@ -58,7 +60,7 @@ Light Interception data\
 
 sensor slowly moved horizontally through canopy within each subplot\
 PAR measurement taken with sensor on the ground and above canopy\
-  - in T2 and T3 another PAR measurement was taken 15 cm from the ground\
+    - in T2 and T3 another PAR measurement was taken 15 cm from the ground\
 At each timepoint, all three subplots had PAR measurments taken through the subplot area (if biomass existed in the subplot; since one subplot was harvested at each timepoint, proceeding timepoints had one subplot per plot fewer available to measure)\
 measurements taken by Leah and recorded by Mirza by hand (T1), and in Fieldbook (T2,T3)\
 
@@ -68,10 +70,10 @@ Above canopy PAR represents the total light available above the crop canopy (i.e
 Below canopy PAR indicates the amount of light that passes through the canopy and is available for the plants below it.\
 
 **Light Interception (LI): percentage of light that is absorbed by the canopy compared to the incident light**\
-LI = ((PAR_above - PAR_below) / PAR_above) * 100\
+$LI = \frac{(PAR_{above} - PAR_{below})}{PAR_{above}} * 100$
 
 **Light Interception Efficiency (LIE): measure of how efficiently the crops intercept light compared to a baseline, such as monocrop systems or theoretical maximum light interception**\
-LIE = mean_intercrop_LI / mean_monocrop_LI\
+$LIE = \frac{\text{mean intercrop LI}} {\text{mean monocrop LI}}$
 
 ### Adjustemnts to Light Interception 
 This does not account for differences in seeding rate between monocultures and intercrops, so I have adjusted based on stand counts\
@@ -290,9 +292,9 @@ LIE_adj_p
 ### Differences in Light Interception by Cropping System
 After checking assumptions and AIC for two models with 1. subplots as individual data points or 2. average subplots for each plot within timepoint, I decided to treat subplot as technical replicates and went with model 2.\
 
-Using linear mixed model $y=X\beta+Z\mu+\epsilon$ with the total light intercepted as the response variable, cropping system (monoculture oat, monoculture pea, or intercrop) and timepoint (T1, T2, T3) as fixed effects, and plot as a random effect\
+Using linear mixed model $y\sim X\beta+Z\mu+\epsilon$ with the total light intercepted as the response variable, cropping system (monoculture oat, monoculture pea, or intercrop) and timepoint (T1, T2, T3) as fixed effects, and plot as a random effect\
 
-$$ Total Light Interception = Timepoint * Cropping System + (1|plot)$$
+$$ \text{Total Light Interception} \sim \text{Timepoint} * \text{Cropping System} + (1|\text{plot})$$
 
 ```{r echo=FALSE}
 # average subplots for each plot within timepoint
@@ -325,13 +327,13 @@ emms_df <- as.data.frame(summary(emms))
 cld_data <- cld(emms, Letters=custom_letters)
 cld_df <-as.data.frame(cld_data)
 merged_df <- merge(emms_df, cld_df,by = c("Timepoint", "Crop"))
-totLI_crop <- ggplot(LiCor2, aes(x = Timepoint, y = plotlvl_tot_LI, colour = Crop)) +
+totLI_crop <- ggplot(LiCor2, aes(x = Timepoint, y = plotlvl_tot_LI, fill = Crop)) +
   geom_boxplot(position = position_dodge(width = 0.8)) +
-  geom_text(data = merged_df, aes(x = Timepoint, y = emmean.x, colour = Crop, label = .group),
+  geom_text(data = merged_df, aes(x = Timepoint, y = emmean.x, fill = Crop, label = .group),
             position = position_dodge(width = 0.8),
-            vjust = -0.75,  # slightly above each box
+            vjust = -1.2,  # slightly above each box
             size = 5)+      # font size
-  scale_colour_manual(values = c("#DDCC77", "#882255", "#117733"),labels = c("Oat Monoculture","Pea Monoculture", "Intercrop"))+
+  scale_fill_manual('Cropping System', values = c("#DDCC77", "#882255", "#117733"),labels = c("Oat Monoculture","Pea Monoculture", "Intercrop"))+
   labs(title = "Relationship of Total Light Interception to Cropping System and Timepoint", x = "Timepoint", y = "Light Interception (%)")+
   theme(axis.text=element_text(size=14), #change font size of axis text
         axis.title=element_text(size=18))
@@ -344,19 +346,19 @@ totLI_crop
 estimated marginal means of the Cropping System x Timepoint interaction show:\
 
 - Within a timepoint, the **intercrop is always intercepting more light than the monocultures**\
-- Interesting trend where the **Total Light Interception of the oat monocultures plautues from T2 to T3, perhaps even slightly lower in T3. While the Total Light Interception of pea monocultures trend is to increase**\
 - Within T1 and T2, the two monocultures intercept similar amounts of light, but **in T3 the pea monocultures intercepted more light than the oats**\
   - oats mature earlier and senescence may explain part of the T3 difference\
 - Within Cropping System, Light interception was similar in T2 and T3\
-  - Once biomass is accumulated, later season there is probably less change in height and biomass compared to early season\
-- When is the ideal time for Total Light Interception to be at a max? I have not matched these timepoints or the data to crop phenology (ex. flowering time); is high light interception during flowering/seed fill limiting the potential end yield of the system? 
+  - Once biomass is accumulated, later season there is probably less change in height and biomass compared to early season\  
+  \
+    \
+- Interesting trend where the **Total Light Interception of the oat monocultures plateaus from T2 to T3, perhaps even slightly lower in T3. While the Total Light Interception of pea monocultures trend is to increase**\
+- *When is the ideal time for Total Light Interception to be at a max?* I have not matched these timepoints or the data to crop phenology (ex. flowering time); is high light interception during flowering/seed fill limiting the potential end yield of the system? 
   
 ### Differences in Biomass by Light Interception and Cropping System
 Using linear mixed model $y=X\beta+Z\mu+\epsilon$ with either oat, pea, weed, or oat+pea biomass as the response variable, and total light interception, cropping system (monoculture oat, monoculture pea, or intercrop) and timepoint (T1, T2, T3) as fixed effects, and plot as a random effect\
 
-$$ Biomass = Total Light Interception * Timepoint * Cropping System + (1|plot)$$
-The only significance found was Timepoint for oat biomass and total crop biomass
-
+$$ \text{Biomass} = \text{Total Light Interception} * \text{Timepoint} * \text{Cropping System} + (1|\text{plot})$$
 ```{r echo=FALSE}
 LiCor2 <- LiCor %>%
   group_by(plot_number, Timepoint) %>%
@@ -590,15 +592,16 @@ ft3 <- ft %>%
 ```{r echo=FALSE}
 ft3
 ```
-
+$$p < 0.001 ~ "***", p < 0.01  ~ "**", p < 0.05  ~ "*", p < 0.1   ~ "."$$
 The results were not consistent; no clear trend to what factors affect a species's biomass within a timepoint\ 
 Difficult to say anything with small data set\
 
 ## Summary
 
 - **Intercrops have higher Light Interception Efficiency than either oat monoculture or pea monocultures** 
-- The Total Light Interception of intercrops was always significantly higher than the Total Light Interception of either species monoculture
-- For both pea and oat monocultures, the species had similar Total Light Interception in Timepoint 2 and Timepoint 3, and were also similar to each other in Timepoint 1 and Timepoint 2 with **peas intercepting more light in Timepoint 3 than oats**
+- The Total Light Interception of *intercrops* was always significantly higher than the Total Light Interception of either species *monoculture*
+- For all cropping systems, there were similar Total Light Interception in Timepoint 3 as the cropping system showed in Timepoint 2
+- Pea and oat monocultures were similar to each other in Timepoint 1 and Timepoint 2 but **peas intercepting more light in Timepoint 3 than oats**
 - Because this is not a large data set (20 plots) I have low confidence in the model results- significance may be inconsequential or we could be missing real trends
 - Have not been able to model genotype level differences for similar reason of not a big data set
 
